@@ -1,0 +1,57 @@
+<div class="list-page flex flex-column gap-4 animate-fade-in">
+  <div class="flex flex-column lg:flex-row justify-content-between align-items-start lg:align-items-center gap-3 mb-2">
+    <div class="min-w-0">
+      <h2 class="text-2xl sm:text-3xl font-bold text-900 m-0">FTO Processing</h2>
+      <p class="text-600 mt-2">Select received FTOs to generate a new bill.</p>
+    </div>
+    <p-button [label]="'Generate Bill (' + selectedFtos.length + ')'" 
+              icon="pi pi-plus" 
+              [disabled]="selectedFtos.length === 0"
+              (onClick)="onGenerateBill()"
+              styleClass="w-full sm:w-auto p-button-lg shadow-3"></p-button>
+  </div>
+
+  <p-toast></p-toast>
+  <p-table #dt [value]="ftos()" [lazy]="true" (onLazyLoad)="loadFtos($event)" [dataKey]="'ftoNo'"
+           [rows]="10" [totalRecords]="totalRecords()" [loading]="loading()" 
+           [paginator]="true" [showCurrentPageReport]="true"
+           [scrollable]="true"
+           [tableStyle]="{ 'min-width': '62rem' }"
+           class="shadow-4 border-round-xl border-1 border-gray-100 overflow-hidden"
+           [(selection)]="selectedFtos"
+           currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries">
+    <ng-template pTemplate="header">
+      <tr class="surface-50 border-bottom-1 border-gray-200">
+        <th class="py-4" style="width: 4rem"><p-tableHeaderCheckbox></p-tableHeaderCheckbox></th>
+        <th class="py-4 font-bold text-900" pSortableColumn="ftoNo">FTO Number <p-sortIcon field="ftoNo"></p-sortIcon></th>
+        <th class="py-4 font-bold text-900" pSortableColumn="amount">Amount <p-sortIcon field="amount"></p-sortIcon></th>
+        <th class="py-4 font-bold text-900">Creation Date</th>
+        <th class="py-4 font-bold text-900">User Context</th>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="body" let-fto>
+      <tr [pSelectableRow]="fto" class="hover:bg-primary-50 transition-colors transition-duration-300">
+        <td><p-tableCheckbox [value]="fto"></p-tableCheckbox></td>
+        <td class="font-medium text-900">{{ fto.ftoNo }}</td>
+        <td class="font-bold text-900">{{ fto.amount | currency:'INR' }}</td>
+        <td class="text-600">{{ fto.ftoCreationDate | date:'dd MMM yyyy, HH:mm' }}</td>
+        <td>
+          <span class="p-2 border-round bg-gray-100 text-600 text-xs">
+            <i class="pi pi-user mr-1"></i>{{ fto.userid }}
+          </span>
+          <span class="p-2 border-round bg-primary-50 text-primary text-xs ml-2">
+            <i class="pi pi-building mr-1"></i>{{ fto.ddoCode }}
+          </span>
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="emptymessage">
+        <tr>
+            <td colspan="5" class="text-center p-8">
+                <i class="pi pi-inbox text-6xl text-300 mb-4 block"></i>
+                <span class="text-500 font-medium">No pending FTOs found for your role.</span>
+            </td>
+        </tr>
+    </ng-template>
+  </p-table>
+</div>
