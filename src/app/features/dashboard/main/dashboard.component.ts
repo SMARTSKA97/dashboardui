@@ -6,6 +6,7 @@ import { UIChart } from 'primeng/chart';
 import { Select } from 'primeng/select';
 import { DatePicker } from 'primeng/datepicker';
 import { Tag } from 'primeng/tag';
+import { Tooltip } from 'primeng/tooltip';
 import { DashboardService, DashboardMetrics } from '../../../core/services/dashboard.service';
 import { SignalrService } from '../../../core/services/signalr.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -22,7 +23,7 @@ interface KpiCard {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, Card, UIChart, Select, DatePicker, Tag],
+  imports: [CommonModule, FormsModule, Card, UIChart, Select, DatePicker, Tag, Tooltip],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
@@ -37,7 +38,6 @@ export class DashboardComponent implements OnInit {
 
   isLive = signal(true);
   flashSignal = signal(false);
-  activeFinancialYear = signal(this.getFinancialYear(new Date()));
 
   datePresets = [
     { label: 'Today', value: 'today' },
@@ -101,49 +101,29 @@ export class DashboardComponent implements OnInit {
     switch (this.selectedPreset) {
       case 'today':
         start.setHours(0, 0, 0, 0);
-        end = new Date();
         this.isLive.set(true);
         break;
       case 'week':
-        start = this.startOfWeek(now);
-        end = new Date();
+        start.setDate(now.getDate() - now.getDay());
         this.isLive.set(false);
         break;
       case 'month':
         start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date();
-        this.isLive.set(false);
-        break;
-      case 'quarter':
-        start = this.startOfFinancialQuarter(now);
-        end = new Date();
         this.isLive.set(false);
         break;
       case 'year':
-        start = this.startOfFinancialYear(now);
-        end = new Date();
+        start = new Date(2026, 3, 1); // FY starts April
         this.isLive.set(false);
         break;
-      case 'prev_year':
-        start = this.startOfFinancialYear(new Date(this.getFinancialYear(now) - 1, 3, 1));
-        end = new Date(this.getFinancialYear(now), 2, 31, 23, 59, 59, 999);
-        this.isLive.set(false);
-        break;
-      default:
-        start.setHours(0, 0, 0, 0);
-        end = new Date();
-        this.isLive.set(true);
     }
 
     this.dateRange = [start, end];
-    this.activeFinancialYear.set(this.getFinancialYear(start));
     this.refreshMetrics();
   }
 
   onCustomDateChange() {
     if (this.dateRange[0] && this.dateRange[1]) {
-      this.isLive.set(this.isTodayRange(this.dateRange[0], this.dateRange[1]));
-      this.activeFinancialYear.set(this.getFinancialYear(this.dateRange[0]));
+      this.isLive.set(false);
       this.refreshMetrics();
     }
   }
@@ -152,7 +132,7 @@ export class DashboardComponent implements OnInit {
     const start = this.dateRange[0];
     const end = this.dateRange[1] || new Date();
 
-    this.dashService.getMetrics(this.activeFinancialYear(), start, end).subscribe((m: DashboardMetrics) => {
+    this.dashService.getMetrics(2026, start, end).subscribe((m: DashboardMetrics) => {
       this.metrics.set(m);
       this.updateChartData(m);
     });
@@ -183,41 +163,12 @@ export class DashboardComponent implements OnInit {
       datasets: [
         {
           label: 'Workflow Performance',
-          backgroundColor: ['#4f46e5', '#0f766e', '#f59e0b', '#16a34a'],
+          backgroundColor: ['#6366f1', '#a855f7', '#3b82f6', '#22c55e'],
           data: [m.receivedFto, m.processedFto, m.generatedBills, m.forwardedToTreasury],
           borderRadius: 12,
-          maxBarThickness: 42
+          barThickness: 40
         }
       ]
     };
-  }
-
-  private startOfWeek(date: Date) {
-    const start = new Date(date);
-    const offset = (start.getDay() + 6) % 7;
-    start.setDate(start.getDate() - offset);
-    start.setHours(0, 0, 0, 0);
-    return start;
-  }
-
-  private startOfFinancialYear(date: Date) {
-    const financialYear = this.getFinancialYear(date);
-    return new Date(financialYear, 3, 1);
-  }
-
-  private startOfFinancialQuarter(date: Date) {
-    const fyStart = this.startOfFinancialYear(date);
-    const monthOffset = (date.getMonth() - 3 + 12) % 12;
-    const quarterOffset = Math.floor(monthOffset / 3) * 3;
-    return new Date(fyStart.getFullYear(), fyStart.getMonth() + quarterOffset, 1);
-  }
-
-  private getFinancialYear(date: Date) {
-    return date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
-  }
-
-  private isTodayRange(start: Date, end: Date) {
-    const today = new Date();
-    return start.toDateString() === today.toDateString() && end.toDateString() === today.toDateString();
   }
 }
