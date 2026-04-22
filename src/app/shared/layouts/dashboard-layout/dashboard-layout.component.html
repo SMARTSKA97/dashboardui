@@ -23,6 +23,15 @@
     </div>
 
     <div class="flex align-items-center gap-2 sm:gap-4">
+      <p-button
+        [icon]="isCollapsed() ? 'pi pi-angle-double-right' : 'pi pi-angle-double-left'"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        styleClass="hidden lg:flex"
+        (onClick)="toggleCollapse()"
+        [pTooltip]="isCollapsed() ? 'Expand Menu' : 'Collapse Menu'"></p-button>
+        
       <div class="text-right hidden md:block">
         <div class="text-900 font-bold line-height-1">{{ auth.currentUser()?.userId }}</div>
         <div class="text-600 text-sm line-height-1 mt-1">{{ auth.currentUser()?.role }} | {{ auth.currentUser()?.ddoCode
@@ -46,8 +55,9 @@
 
     <!-- Sidebar -->
     <aside
-      class="app-sidebar bg-white border-right-1 border-gray-200 flex flex-column py-4 sm:py-5 shadow-1 overflow-y-auto"
-      [class.open]="sidebarOpen()">
+      class="app-sidebar bg-white border-right-1 border-gray-200 flex flex-column py-4 sm:py-5 shadow-1 overflow-x-hidden transition-all transition-duration-300"
+      [class.open]="sidebarOpen()"
+      [class.collapsed]="isCollapsed()">
       <div class="flex align-items-center justify-content-between px-3 pb-3 lg:hidden">
         <div class="text-900 font-bold">Navigation</div>
         <p-button icon="pi pi-times" severity="secondary" [text]="true" [rounded]="true" (onClick)="closeSidebar()"></p-button>
@@ -55,10 +65,12 @@
       <div class="flex flex-column gap-2 px-3">
         @for (item of menuItems; track item.label) {
         <a [routerLink]="item.routerLink" routerLinkActive="bg-primary-50 text-primary font-bold shadow-1"
-          class="flex align-items-center px-3 sm:px-4 py-3 border-round-xl transition-all transition-duration-300 no-underline text-700 hover:bg-gray-100 group"
-          (click)="closeSidebar()">
-          <i [class]="item.icon" class="mr-3 text-lg opacity-80 group-hover:opacity-100"></i>
-          <span>{{ item.label }}</span>
+          class="flex align-items-center px-4 py-3 border-round-xl transition-all transition-duration-300 no-underline text-700 hover:bg-gray-100 group overflow-hidden"
+          (click)="closeSidebar()"
+          [pTooltip]="isCollapsed() ? item.label : ''"
+          tooltipPosition="right">
+          <i [class]="item.icon" class="text-lg opacity-80 group-hover:opacity-100 flex-shrink-0" [class.mr-3]="!isCollapsed()"></i>
+          <span class="white-space-nowrap transition-all transition-duration-300" [class.opacity-0]="isCollapsed()" [class.w-0]="isCollapsed()">{{ item.label }}</span>
         </a>
         }
       </div>

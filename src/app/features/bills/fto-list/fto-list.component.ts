@@ -5,6 +5,7 @@ import { Button } from 'primeng/button';
 import { Toast } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { BillService, Fto } from '../../../core/services/bill.service';
+import { DashboardService } from '../../../core/services/dashboard.service';
 
 @Component({
   selector: 'app-fto-list',
@@ -15,6 +16,7 @@ import { BillService, Fto } from '../../../core/services/bill.service';
 })
 export class FtoListComponent implements OnInit {
   private billService = inject(BillService);
+  private dashService = inject(DashboardService);
   private messageService = inject(MessageService);
 
   ftos = signal<Fto[]>([]);
@@ -41,8 +43,10 @@ export class FtoListComponent implements OnInit {
 
   onGenerateBill() {
     const ftoNos = this.selectedFtos.map(f => f.ftoNo);
-    // Assuming FY 2026 for now
-    this.billService.generateBill(ftoNos, 2026).subscribe({
+    // Dynamic FY: Consuming global 'Source of Truth' from DashboardService
+    const fy = this.dashService.activeFy();
+    
+    this.billService.generateBill(ftoNos, fy).subscribe({
       next: () => {
         this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Bill generated successfully' });
         this.selectedFtos = [];

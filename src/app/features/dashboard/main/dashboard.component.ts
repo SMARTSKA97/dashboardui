@@ -1,174 +1,321 @@
-import { Component, OnInit, signal, effect, computed, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, effect, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { Card } from 'primeng/card';
-import { UIChart } from 'primeng/chart';
+import { ChartModule } from 'primeng/chart';
 import { Select } from 'primeng/select';
 import { DatePicker } from 'primeng/datepicker';
 import { Tag } from 'primeng/tag';
-import { Tooltip } from 'primeng/tooltip';
+import { ButtonModule } from 'primeng/button';
+import { TooltipModule } from 'primeng/tooltip';
+import { MessageModule } from 'primeng/message';
+
 import { DashboardService, DashboardMetrics } from '../../../core/services/dashboard.service';
 import { SignalrService } from '../../../core/services/signalr.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { environment } from '../../../../environments/environment';
 
 interface KpiCard {
+  id: string;
   title: string;
   value: number;
   icon: string;
   trend: number;
   flashing: boolean;
-  suffix: string;
+  color: string;
 }
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, Card, UIChart, Select, DatePicker, Tag, Tooltip],
+  imports: [CommonModule, FormsModule, Card, ChartModule, Select, DatePicker, Tag, TooltipModule, ButtonModule, MessageModule],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent implements OnInit {
-  private dashService = inject(DashboardService);
+export class DashboardComponent implements OnInit, OnDestroy {
+  public dashService = inject(DashboardService);
   private signalr = inject(SignalrService);
   public auth = inject(AuthService);
 
-  metrics = signal<DashboardMetrics | null>(null);
+  // Elite Split-Snapshot State
+  historicalBase = signal<DashboardMetrics | null>(null);
+  todayMetrics = signal<DashboardMetrics | null>(null);
+
+  metrics = computed<DashboardMetrics | null>(() => {
+    const base = this.historicalBase();
+    const live = this.todayMetrics();
+    if (!base && !live) return null;
+    const b = base || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: '' };
+    const l = live || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: '' };
+    return {
+      receivedFto: b.receivedFto + l.receivedFto,
+      processedFto: b.processedFto + l.processedFto,
+      generatedBills: b.generatedBills + l.generatedBills,
+      forwardedToTreasury: b.forwardedToTreasury + l.forwardedToTreasury,
+      receivedByApprover: b.receivedByApprover + l.receivedByApprover,
+      rejectedByApprover: b.rejectedByApprover + l.rejectedByApprover,
+      systemLoad: l.systemLoad || b.systemLoad, // Use live load if available
+      context: l.context || b.context          // Use live context if available
+    };
+  });
+
+  // UI Restoration Properties
   dateRange: Date[] = [new Date(), new Date()];
-  selectedPreset = 'today';
-
-  isLive = signal(true);
-  flashSignal = signal(false);
-
+  selectedPreset = 'year';
   datePresets = [
     { label: 'Today', value: 'today' },
     { label: 'This Week', value: 'week' },
     { label: 'This Month', value: 'month' },
-    { label: 'This Quarter', value: 'quarter' },
-    { label: 'This Year (FY)', value: 'year' },
-    { label: 'Previous Year', value: 'prev_year' }
+    { label: 'Q1 (Apr-Jun)', value: 'q1' },
+    { label: 'Q2 (Jul-Sep)', value: 'q2' },
+    { label: 'Q3 (Oct-Dec)', value: 'q3' },
+    { label: 'Q4 (Jan-Mar)', value: 'q4' },
+    { label: 'Full Financial Year', value: 'year' }
   ];
+
+  activeFlashKpis = signal<Set<string>>(new Set());
+  countdownTimer = computed(() => this.dashService.activeStatus()?.remaining_seconds ?? 0);
+  canShowManualControls = computed(() => this.auth.currentUser()?.role === 'Admin');
+
+  // Adaptive DatePicker States
+  datepickerView = signal<'date' | 'month' | 'year'>('date');
+  datepickerFormat = signal<string>('dd/mm/yy');
+  selectionMode = signal<'single' | 'range'>('range');
+  isQuarterMode = signal<boolean>(false);
+  selectedQuarter = signal<string>('q1');
+
+  quarters = [
+    { label: 'Q1 (Apr-Jun)', value: 'q1' },
+    { label: 'Q2 (Jul-Sep)', value: 'q2' },
+    { label: 'Q3 (Oct-Dec)', value: 'q3' },
+    { label: 'Q4 (Jan-Mar)', value: 'q4' }
+  ];
+
+  chartData: any;
+  chartOptions = {
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, grid: { color: '#ebedef' } } }
+  };
+
+  private activeGroup: { target: string, scope: string } | null = null;
+  private midnightTimer: any;
+  private syncPoller: any;
+
+  isRealTimeApplicable = computed(() => {
+    const range = this.dateRange;
+    if (!range || !range[0]) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const start = new Date(range[0]); start.setHours(0, 0, 0, 0);
+    const end = range[1] ? new Date(range[1]) : new Date(range[0]); end.setHours(0, 0, 0, 0);
+    return today.getTime() >= start.getTime() && today.getTime() <= end.getTime();
+  });
 
   kpiData = computed<KpiCard[]>(() => {
     const m = this.metrics();
     if (!m) return [];
-
+    const isLive = this.isRealTimeApplicable();
+    const activeFlashing = this.activeFlashKpis();
     return [
-      { title: 'FTO Received', value: m.receivedFto, icon: 'pi pi-download', trend: 12, flashing: this.flashSignal(), suffix: '' },
-      { title: 'FTO Processed', value: m.processedFto, icon: 'pi pi-cog', trend: 8, flashing: this.flashSignal(), suffix: '' },
-      { title: 'Generated Bills', value: m.generatedBills, icon: 'pi pi-file', trend: 5, flashing: this.flashSignal(), suffix: '' },
-      { title: 'Treasury Forwarded', value: m.forwardedToTreasury, icon: 'pi pi-send', trend: 15, flashing: this.flashSignal(), suffix: '' },
-      { title: 'Approver Rcvd', value: m.receivedByApprover, icon: 'pi pi-eye', trend: -2, flashing: this.flashSignal(), suffix: '' },
-      { title: 'Rejected', value: m.rejectedByApprover, icon: 'pi pi-times-circle', trend: -10, flashing: this.flashSignal(), suffix: '' }
+      { id: 'FTO_RCVD', title: 'FTO Received', value: m.receivedFto, icon: 'pi pi-download', trend: 12, flashing: isLive && activeFlashing.has('FTO_RCVD'), color: '#6366f1' },
+      { id: 'FTO_PROCESSED', title: 'FTO Processed', value: m.processedFto, icon: 'pi pi-cog', trend: 8, flashing: isLive && (activeFlashing.has('BILL_GEN') || activeFlashing.has('FTO_PROCESSED')), color: '#a855f7' },
+      { id: 'BILL_GEN', title: 'Generated Bills', value: m.generatedBills, icon: 'pi pi-file', trend: 5, flashing: isLive && activeFlashing.has('BILL_GEN'), color: '#3b82f6' },
+      { id: 'BILL_FWD', title: 'Treasury Forwarded', value: m.forwardedToTreasury, icon: 'pi pi-send', trend: 15, flashing: isLive && activeFlashing.has('BILL_FWD'), color: '#22c55e' },
+      { id: 'APP_RCVD', title: 'Approver Rcvd', value: m.receivedByApprover, icon: 'pi pi-eye', trend: -2, flashing: isLive && activeFlashing.has('BILL_FWD'), color: '#f59e0b' },
+      { id: 'BILL_REJ', title: 'Rejected', value: m.rejectedByApprover, icon: 'pi pi-times-circle', trend: -10, flashing: isLive && activeFlashing.has('BILL_REJ'), color: '#ef4444' }
     ];
   });
 
-  processingRate = computed(() => {
-    const m = this.metrics();
-    if (!m || m.receivedFto === 0) return 0;
-    return Math.round((m.processedFto / m.receivedFto) * 100);
-  });
-
-  treasuryRate = computed(() => {
-    const m = this.metrics();
-    if (!m || m.generatedBills === 0) return 0;
-    return Math.round((m.forwardedToTreasury / m.generatedBills) * 100);
-  });
-
-  chartData: any;
-  chartOptions: any;
-
   constructor() {
-    // Smart Gatekeeper Strategy: Update if live and in range
     effect(() => {
-      const update = this.signalr.updates$();
-      if (update && this.isLive()) {
-        this.refreshMetrics();
-        this.triggerFlash();
+      const pulse = this.signalr.updates$();
+
+      // ENTERPRISE GATING: Optimized Pulse Handling
+      if (pulse && this.isRealTimeApplicable()) {
+        this.todayMetrics.update(curr => {
+          const next = curr ? { ...curr } : { 
+            receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, 
+            receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: pulse.sc || 'Pulse' 
+          };
+
+          if (pulse.rf !== undefined) next.receivedFto = pulse.rf;
+          if (pulse.pf !== undefined) next.processedFto = pulse.pf;
+          if (pulse.gb !== undefined) next.generatedBills = pulse.gb;
+          if (pulse.ft !== undefined) next.forwardedToTreasury = pulse.ft;
+          if (pulse.ar !== undefined) next.receivedByApprover = pulse.ar;
+          if (pulse.rb !== undefined) next.rejectedByApprover = pulse.rb;
+          if (pulse.sl !== undefined) next.systemLoad = pulse.sl;
+
+          return next;
+        });
+
+        // Deduce Flash Keys from Payload (Zero-Metadata Approach)
+        if (pulse.rf !== undefined) this.triggerFlash('FTO_RCVD');
+        if (pulse.pf !== undefined || pulse.gb !== undefined) this.triggerFlash('FTO_PROCESSED,BILL_GEN');
+        if (pulse.ar !== undefined) this.triggerFlash('APP_RCVD');
+        if (pulse.ft !== undefined) this.triggerFlash('BILL_FWD');
+        if (pulse.rb !== undefined) this.triggerFlash('BILL_REJ');
+      }
+    });
+
+    effect(() => {
+      if (this.dashService.activeFy()) this.onPresetChange();
+    });
+
+    effect(() => {
+      const m = this.metrics();
+      if (m) {
+        this.chartData = {
+          labels: ['FTO Rcvd', 'FTO Proc', 'Generated', 'T-Forward', 'App Rcvd', 'Rejected'],
+          datasets: [{ data: [m.receivedFto, m.processedFto, m.generatedBills, m.forwardedToTreasury, m.receivedByApprover, m.rejectedByApprover], backgroundColor: ['#6366f1', '#a855f7', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444'] }]
+        };
       }
     });
   }
 
   ngOnInit() {
-    this.onPresetChange();
-    this.initChart();
+    this.bootDashboard();
+    this.setupRealTime();
+    this.setupMidnightRollOver();
+    this.setupSyncPoller();
+  }
+
+  private setupSyncPoller() {
+    // 5-minute Heartbeat Monitor
+    this.syncPoller = setInterval(async () => {
+      console.log('Background Sync Poller: Checking connection heartbeat...');
+      const didReconnect = await this.signalr.checkAndReconnect();
+      if (didReconnect) {
+        console.log('Background Sync Poller: Restoring Snapshot Integrity...');
+        this.refreshMetrics();
+      }
+    }, environment.signalR.pollerIntervalMs);
+  }
+
+  private setupMidnightRollOver() {
+    this.midnightTimer = setInterval(() => {
+      const now = new Date();
+      if (now.getHours() === 0 && now.getMinutes() === 0) this.onPresetChange();
+    }, 60000);
+  }
+
+  private bootDashboard() {
+    this.dashService.getStatus().subscribe();
+  }
+
+  ngOnDestroy() {
+    this.cleanupRealTime();
+    if (this.midnightTimer) clearInterval(this.midnightTimer);
+    if (this.syncPoller) clearInterval(this.syncPoller);
+  }
+
+  private setupRealTime() {
+    const user = this.auth.currentUser();
+    if (!user) return;
+    const scope = user.role === 'Admin' ? 'Admin' : (user.role === 'Approver' ? `DDO:${user.ddoCode}` : `DDO:${user.ddoCode}:OP:${user.userId}`);
+    this.activeGroup = { target: 'Dashboard', scope: scope };
+    this.signalr.joinGroup(this.activeGroup.target, this.activeGroup.scope);
+  }
+
+  private cleanupRealTime() {
+    if (this.activeGroup) this.signalr.leaveGroup(this.activeGroup.target, this.activeGroup.scope);
   }
 
   onPresetChange() {
     const now = new Date();
     let start = new Date();
     let end = new Date();
+    const fyId = this.dashService.activeFy();
+    const startYear = 2000 + Math.floor(fyId / 100);
+
+    // Reset Adaptive UI States
+    this.isQuarterMode.set(false);
+    this.datepickerView.set('date');
+    this.datepickerFormat.set('dd/mm/yy');
+    this.selectionMode.set('range');
 
     switch (this.selectedPreset) {
       case 'today':
-        start.setHours(0, 0, 0, 0);
-        this.isLive.set(true);
+        this.selectionMode.set('single');
+        this.datepickerView.set('date');
+        this.datepickerFormat.set('dd/mm/yy');
+        this.dateRange = [now];
         break;
       case 'week':
-        start.setDate(now.getDate() - now.getDay());
-        this.isLive.set(false);
-        break;
+        start.setDate(now.getDate() - now.getDay()); start.setHours(0, 0, 0, 0); break;
       case 'month':
+        this.datepickerView.set('month');
+        this.datepickerFormat.set('mm/yy');
+        this.selectionMode.set('single');
         start = new Date(now.getFullYear(), now.getMonth(), 1);
-        this.isLive.set(false);
         break;
-      case 'year':
-        start = new Date(2026, 3, 1); // FY starts April
-        this.isLive.set(false);
-        break;
+      case 'q1': case 'q2': case 'q3': case 'q4':
+        this.isQuarterMode.set(true);
+        this.datepickerView.set('year');
+        this.datepickerFormat.set('yy');
+        this.selectedQuarter.set(this.selectedPreset);
+        this.selectionMode.set('single');
+        this.applyQuarterRange(startYear, this.selectedPreset);
+        return;
+      default:
+        start = new Date(startYear, 3, 1); end = new Date(startYear + 1, 2, 31, 23, 59, 59); break;
     }
 
+    const maxEnd = now.getTime() < end.getTime() ? now : end;
+    this.dateRange = [start, maxEnd];
+    this.refreshMetrics();
+  }
+
+  onQuarterSelected() {
+    const fyId = this.dashService.activeFy();
+    const startYear = 2000 + Math.floor(fyId / 100);
+    this.applyQuarterRange(startYear, this.selectedQuarter());
+  }
+
+  private applyQuarterRange(startYear: number, q: string) {
+    let start: Date, end: Date;
+    switch (q) {
+      case 'q1': start = new Date(startYear, 3, 1); end = new Date(startYear, 5, 30, 23, 59, 59); break;
+      case 'q2': start = new Date(startYear, 6, 1); end = new Date(startYear, 8, 30, 23, 59, 59); break;
+      case 'q3': start = new Date(startYear, 9, 1); end = new Date(startYear, 11, 31, 23, 59, 59); break;
+      case 'q4': start = new Date(startYear + 1, 0, 1); end = new Date(startYear + 1, 2, 31, 23, 59, 59); break;
+      default: return;
+    }
     this.dateRange = [start, end];
     this.refreshMetrics();
   }
 
-  onCustomDateChange() {
-    if (this.dateRange[0] && this.dateRange[1]) {
-      this.isLive.set(false);
-      this.refreshMetrics();
+  refreshMetrics() {
+    const fy = this.dashService.activeFy();
+    const start = this.dateRange[0];
+    const end = this.dateRange[1] || new Date();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    if (this.isRealTimeApplicable()) {
+      const yesterdayEnd = new Date(today.getTime() - 1);
+      forkJoin({
+        hist: this.dashService.getMetrics(fy, start, yesterdayEnd),
+        live: this.dashService.getMetrics(fy, today, end)
+      }).subscribe(({ hist, live }) => {
+        this.historicalBase.set(hist);
+        this.todayMetrics.set(live);
+      });
+    } else {
+      this.dashService.getMetrics(fy, start, end).subscribe(m => {
+        this.historicalBase.set(m);
+        this.todayMetrics.set(null);
+      });
     }
   }
 
-  refreshMetrics() {
-    const start = this.dateRange[0];
-    const end = this.dateRange[1] || new Date();
-
-    this.dashService.getMetrics(2026, start, end).subscribe((m: DashboardMetrics) => {
-      this.metrics.set(m);
-      this.updateChartData(m);
-    });
+  refreshBaseline() {
+    this.dashService.refreshBaseline().subscribe(() => this.bootDashboard());
   }
 
-  triggerFlash() {
-    this.flashSignal.set(true);
-    setTimeout(() => this.flashSignal.set(false), 800);
-  }
-
-  initChart() {
-    const documentStyle = getComputedStyle(document.documentElement);
-    this.chartOptions = {
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: '#495057', font: { weight: '700' } } }
-      },
-      scales: {
-        x: { grid: { display: false } },
-        y: { grid: { color: '#ebedef', drawDash: true } }
-      }
-    };
-  }
-
-  updateChartData(m: DashboardMetrics) {
-    this.chartData = {
-      labels: ['Received FTO', 'Processed FTO', 'Generated Bills', 'Treasury Bills'],
-      datasets: [
-        {
-          label: 'Workflow Performance',
-          backgroundColor: ['#6366f1', '#a855f7', '#3b82f6', '#22c55e'],
-          data: [m.receivedFto, m.processedFto, m.generatedBills, m.forwardedToTreasury],
-          borderRadius: 12,
-          barThickness: 40
-        }
-      ]
-    };
+  private triggerFlash(event: string) {
+    if (!event) return;
+    const events = event.split(',');
+    this.activeFlashKpis.update(set => { events.forEach(e => set.add(e)); return new Set(set); });
+    setTimeout(() => this.activeFlashKpis.update(set => { events.forEach(e => set.delete(e)); return new Set(set); }), 1500);
   }
 }

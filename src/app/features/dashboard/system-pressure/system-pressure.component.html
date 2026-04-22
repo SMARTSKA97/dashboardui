@@ -1,0 +1,63 @@
+<div class="pressure-container p-4">
+    <!-- Header with Controls -->
+    <div class="flex justify-content-between align-items-center mb-5 hero-header p-4 shadow-4">
+        <div>
+            <h1 class="text-white m-0 text-3xl font-bold italic">SYSTEM PRESSURE ENGINE</h1>
+            <p class="text-white-alpha-70 m-0">Live workflow synchronization & stress monitoring</p>
+        </div>
+        <div class="flex gap-3 align-items-center">
+            <div class="load-indicator mr-4">
+                <span class="text-white-alpha-80 text-sm block mb-1">CURRENT BACKLOG</span>
+                <p-tag [severity]="getLoadColor()" [value]="systemLoad().toString()" class="text-xl px-3"></p-tag>
+            </div>
+            <button pButton 
+                [label]="isSimulating() ? 'STOP ENGINE' : 'ACTIVATE ENGINE'" 
+                [icon]="isSimulating() ? 'pi pi-spin pi-cog' : 'pi pi-bolt'"
+                [severity]="isSimulating() ? 'danger' : 'success'"
+                (click)="isSimulating() ? stopSimulation() : startSimulation()"
+                class="p-button-raised p-button-rounded px-4 font-bold scale-hover">
+            </button>
+        </div>
+    </div>
+
+    <!-- 3-Column Split View -->
+    <div class="grid">
+        <div *ngFor="let m of metrics()" class="col-12 lg:col-4">
+            <p-card [styleClass]="'perspective-card shadow-4 ' + (pulseStates()[m.context] ? 'pulse-active' : '')">
+                <ng-template pTemplate="header">
+                    <div class="card-gradient p-3 flex justify-content-between align-items-center border-round-top">
+                        <span class="text-white font-bold tracking-wider uppercase">{{m.context}}</span>
+                        <i class="pi pi-shield text-white-alpha-70"></i>
+                    </div>
+                </ng-template>
+
+                <div class="metrics-grid mt-2">
+                    <div class="mini-stat">
+                        <span class="label">RECEIVED FTOs</span>
+                        <span class="value text-primary">{{m.receivedFto}}</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="label">PROCESSED</span>
+                        <span class="value text-success">{{m.processedFto}}</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="label">BILLS GEN</span>
+                        <span class="value text-info">{{m.generatedBills}}</span>
+                    </div>
+                </div>
+
+                <div class="flex justify-content-center py-4 relative">
+                    <p-chart type="doughnut" [data]="getChartData(m)" [options]="chartOptions" width="160px" height="160px"></p-chart>
+                    <div class="chart-center">
+                        <span class="percentage">{{ ((m.processedFto / (m.receivedFto || 1)) * 100) | number:'1.0-0' }}%</span>
+                        <span class="sub">Efficiency</span>
+                    </div>
+                </div>
+
+                <div class="mt-2 text-center text-xs text-500 italic">
+                    Real-time synchronization enabled via SignalR
+                </div>
+            </p-card>
+        </div>
+    </div>
+</div>

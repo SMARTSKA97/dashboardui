@@ -44,9 +44,9 @@ export class LoginComponent {
 
   quickLogin(role: 'admin' | 'approver' | 'operator') {
     const creds = {
-      admin: { u: 'SUPERADMIN', p: 'admin123' },
-      approver: { u: 'DDO001_ADMIN', p: 'password123' },
-      operator: { u: 'DDO001_OP1', p: 'password123' }
+      admin: { u: 'Admin', p: 'pass' },
+      approver: { u: 'DDO001_APPROVER', p: 'pass' },
+      operator: { u: 'DDO001_OP1', p: 'pass' }
     };
 
     const target = creds[role];

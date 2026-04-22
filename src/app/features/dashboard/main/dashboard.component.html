@@ -1,48 +1,86 @@
 <div class="dashboard-page flex flex-column gap-4 lg:gap-5 animate-fade-in">
-  <!-- Header & Filters -->
+  <!-- Header & Filters (Source of Truth Controlled) -->
   <div class="hero-panel flex flex-column xl:flex-row justify-content-between align-items-start xl:align-items-center gap-4 p-4 lg:p-5 border-round-2xl shadow-2">
     <div class="min-w-0">
-      <div class="eyebrow">Operational overview</div>
-      <h1 class="text-2xl sm:text-3xl xl:text-4xl font-bold text-900 m-0">Command Center</h1>
+      <div class="eyebrow">Enterprise Command Center</div>
+      <h1 class="text-2xl sm:text-3xl xl:text-4xl font-bold text-900 m-0">Consolidated Ledger</h1>
       <p class="text-600 mt-2 font-medium mb-0">
-        <i class="pi pi-calendar mr-2"></i>Live metrics for FY {{ activeFinancialYear() }}-{{ activeFinancialYear() + 1 }}
+        <i class="pi pi-calendar mr-2"></i>Optimized {{ dashService.activeFyLabel() }} View
       </p>
     </div>
     
     <div class="filters-panel flex flex-column sm:flex-row sm:flex-wrap align-items-stretch sm:align-items-center gap-3 w-full xl:w-auto">
+        <!-- Manual Baseline Refresh (Backend Restricted) -->
+        @if (canShowManualControls()) {
+          <div class="flex flex-row align-items-center gap-3">
+             <p-button icon="pi pi-sync" severity="help" [text]="true" label="Update Status Baseline"
+                       (onClick)="refreshBaseline()" [disabled]="dashService.activeStatus()?.is_allowed === false"
+                       pTooltip="Enforced 24h Cooldown Guardrail"
+                       [styleClass]="'shadow-1 border-round-xl'"></p-button>
+             
+             @if (countdownTimer()) {
+               <div class="timer-display flex align-items-center gap-2 px-3 py-2 border-round-xl bg-orange-50 border-1 border-orange-200">
+                 <i class="pi pi-clock text-orange-500 text-sm"></i>
+                 <span class="text-xs text-orange-700 font-bold tabular-nums">RELOAD IN {{ countdownTimer() }}</span>
+               </div>
+             }
+          </div>
+        }
+
         <p-select [options]="datePresets" [(ngModel)]="selectedPreset" 
                     optionLabel="label" optionValue="value"
                     (onChange)="onPresetChange()"
-                    styleClass="w-full sm:w-14rem shadow-1 h-3rem flex align-items-center"></p-select>
+                    styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
+
+        @if (isQuarterMode()) {
+            <p-select [options]="quarters" [(ngModel)]="selectedQuarter" 
+                        optionLabel="label" optionValue="value"
+                        (onChange)="onQuarterSelected()"
+                        styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
+        }
         
-        <p-datepicker [(ngModel)]="dateRange" selectionMode="range" [showIcon]="true" 
-                     (onSelect)="onCustomDateChange()"
-                     styleClass="w-full sm:w-16rem shadow-1 h-3rem" placeholder="Custom Range"></p-datepicker>
+        <p-datepicker [(ngModel)]="dateRange" 
+                     [selectionMode]="selectionMode()" 
+                     [view]="datepickerView()" 
+                     [dateFormat]="datepickerFormat()"
+                     [showIcon]="true" 
+                     (onSelect)="refreshMetrics()"
+                     styleClass="w-full sm:w-16rem shadow-1 h-3rem border-round-xl" 
+                     placeholder="Select Interval"></p-datepicker>
                      
-        <p-tag [value]="isLive() ? 'LIVE SYNC ACTIVE' : 'HISTORICAL VIEW'" 
-               [severity]="isLive() ? 'success' : 'info'" 
-               class="status-chip shadow-2 uppercase font-bold px-3 py-2"></p-tag>
+        <p-tag [value]="isRealTimeApplicable() ? 'LIVE SYNC ACTIVE' : 'HISTORICAL (PAUSED)'" 
+               [severity]="isRealTimeApplicable() ? 'success' : 'info'" 
+               class="status-chip shadow-1 uppercase font-bold px-3 py-2 border-round-lg"></p-tag>
     </div>
   </div>
 
-  <!-- KPI Cards Layer -->
+  <!-- System Message (Source of Truth) -->
+  @if (dashService.activeStatus()?.message) {
+    <div class="animate-bounce-in">
+        <p-message severity="info" [text]="'System Status: ' + dashService.activeStatus()?.message" styleClass="w-full shadow-1 border-round-xl"></p-message>
+    </div>
+  }
+
+  <!-- KPI Cards Layer (Stock Market Style Animation) -->
   <div class="grid">
-    @for (card of kpiData(); track card.title) {
+    @for (card of kpiData(); track card.id) {
         <div class="col-12 sm:col-6 xl:col-4 2xl:col-2">
-            <p-card [styleClass]="'kpi-card h-full border-none ' + (card.flashing ? 'surface-100 scale-105 transition-all duration-300' : 'transition-all duration-500')">
+            <p-card [styleClass]="'kpi-card h-full border-none transition-all duration-300 ' + (card.flashing ? 'kpi-pulse shadow-4' : 'shadow-2')">
                 <div class="flex flex-column gap-2">
                     <div class="flex justify-content-between align-items-center mb-1">
-                        <span class="text-600 font-bold text-sm uppercase tracking-wider">{{ card.title }}</span>
-                        <i [class]="card.icon + ' text-primary opacity-60'"></i>
+                        <span class="text-600 font-bold text-xs uppercase tracking-wider">{{ card.title }}</span>
+                        <div class="icon-circle p-2 border-round-lg" [style.background-color]="card.color + '15'">
+                            <i [class]="card.icon" [style.color]="card.color"></i>
+                        </div>
                     </div>
-                    <div class="text-4xl font-black text-900 line-height-1">
-                        {{ card.value }}{{ card.suffix || '' }}
+                    <div [class]="'text-4xl font-black text-900 line-height-1 transition-all ' + (card.flashing ? 'scale-110' : '')">
+                        {{ card.value }}
                     </div>
                     <div class="flex align-items-center gap-1 mt-2">
                         <span [class]="'text-xs font-bold ' + (card.trend >= 0 ? 'text-green-500' : 'text-red-500')">
                             <i [class]="'pi ' + (card.trend >= 0 ? 'pi-arrow-up' : 'pi-arrow-down')"></i> {{ card.trend }}%
                         </span>
-                        <span class="text-500 text-xs">vs last period</span>
+                        <span class="text-500 text-xs">pulse rate</span>
                     </div>
                 </div>
             </p-card>
@@ -50,33 +88,32 @@
     }
   </div>
 
-  <!-- Charts & Insights Layer -->
+  <!-- Charts & Metadata Layer -->
   <div class="grid">
     <div class="col-12 xl:col-8">
-        <p-card header="Financial Workflow Pulse" styleClass="dashboard-card shadow-4 border-round-2xl h-full">
+        <p-card header="Financial Velocity Trend" styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
             <p-chart type="bar" [data]="chartData" [options]="chartOptions" height="350px"></p-chart>
         </p-card>
     </div>
     <div class="col-12 xl:col-4">
-        <p-card header="Efficiency Breakdown" styleClass="dashboard-card shadow-4 border-round-2xl h-full">
+        <p-card header="Enterprise Integrity" styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
             <div class="flex flex-column gap-4 py-2">
-                <div class="p-4 bg-primary-50 border-round-xl border-left-3 border-primary shadow-1">
-                    <div class="text-primary font-bold mb-1">FTO PROCESSING RATE</div>
-                    <div class="text-4xl font-black text-primary">{{ processingRate() }}%</div>
-                    <p class="text-600 text-sm mt-1">Efficiency of FTO to Bill conversion.</p>
+                <div class="p-4 bg-primary-50 border-round-xl border-left-3 border-primary shadow-sm">
+                    <div class="text-primary font-bold mb-1 text-xs text-uppercase">UNIVERSAL BASELINE</div>
+                    <div class="text-3xl font-black text-primary">MAT-VIEW CLUSTER</div>
+                    <p class="text-600 text-sm mt-1">Admin, Approver, and Operator class FY data is served from unified cache.</p>
                 </div>
                 
-                <div class="p-4 bg-green-50 border-round-xl border-left-3 border-green-500 shadow-1">
-                    <div class="text-green-600 font-bold mb-1">TREASURY SUCCESS</div>
-                    <div class="text-4xl font-black text-green-600">{{ treasuryRate() }}%</div>
-                    <p class="text-600 text-sm mt-1">Percentage of bills successfully forwarded.</p>
+                <div class="p-4 bg-green-50 border-round-xl border-left-3 border-green-500 shadow-sm">
+                    <div class="text-green-600 font-bold mb-1 text-xs text-uppercase">RECONNECT RESILIENCE</div>
+                    <div class="text-3xl font-black text-green-600">JITTERED SYNC</div>
+                    <p class="text-600 text-sm mt-1">Elastic 15m heartbeats protecting server during high load.</p>
                 </div>
 
-                <div class="surface-ground p-4 border-round-xl border-left-3 border-400 shadow-1">
-                    <div class="text-700 font-bold mb-1">ACTIVE ROLE POLICY</div>
+                <div class="surface-100 p-4 border-round-xl border-left-3 border-400 shadow-sm">
+                    <div class="text-700 font-bold mb-1 text-xs text-uppercase">LATEST TICKER EVENT</div>
                     <div class="flex align-items-center gap-2 mt-2">
-                         <p-tag [value]="auth.currentUser()?.role" severity="contrast"></p-tag>
-                         <span class="text-600 text-sm font-medium">Data isolation enforced.</span>
+                         <p-tag [value]="metrics()?.lastUpdateEvent || 'IDLE'" severity="secondary"></p-tag>
                     </div>
                 </div>
             </div>

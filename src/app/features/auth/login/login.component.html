@@ -1,16 +1,19 @@
 <div class="flex align-items-center justify-content-center min-h-screen surface-ground p-4">
   <p-card header="Financial Dashboard Login" [style]="{ 'max-width': '400px', 'width': '100%' }" class="shadow-8">
     <p-toast></p-toast>
-    <div class="flex flex-column gap-4">
-      <div class="flex flex-column gap-2">
-        <label for="username">Username</label>
-        <input pInputText id="username" [(ngModel)]="username" placeholder="Enter UserId" />
+    <form (ngSubmit)="onLogin()" #loginForm="ngForm">
+      <div class="flex flex-column gap-4">
+        <div class="flex flex-column gap-2">
+          <label for="username">Username</label>
+          <input pInputText id="username" name="username" [(ngModel)]="username" placeholder="Enter UserId" required />
+        </div>
+        <div class="flex flex-column gap-2">
+          <label for="password">Password</label>
+          <p-password id="password" name="password" [(ngModel)]="password" [feedback]="false" [toggleMask]="true" styleClass="w-full" inputStyleClass="w-full" [required]="true"></p-password>
+        </div>
+        <p-button type="submit" label="Sign In" icon="pi pi-user" [loading]="loading" styleClass="w-full shadow-2 h-3rem"></p-button>
       </div>
-      <div class="flex flex-column gap-2">
-        <label for="password">Password</label>
-        <p-password id="password" [(ngModel)]="password" [feedback]="false" [toggleMask]="true" styleClass="w-full" inputStyleClass="w-full"></p-password>
-      </div>
-      <p-button label="Sign In" icon="pi pi-user" (onClick)="onLogin()" [loading]="loading" styleClass="w-full shadow-2 h-3rem"></p-button>
+    </form>
       
       <div class="mt-4 border-top-1 border-gray-100 pt-4">
         <span class="text-600 font-bold text-xs uppercase tracking-widest block mb-3 text-center">Instant Access (Demo Mode)</span>
@@ -29,6 +32,5 @@
             </div>
         </div>
       </div>
-    </div>
   </p-card>
 </div>

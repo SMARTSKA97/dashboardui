@@ -1,0 +1,90 @@
+.pressure-container {
+    background: radial-gradient(circle at top left, #0f172a, #1e293b);
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+}
+
+.hero-header {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.5rem;
+}
+
+.perspective-card {
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 1rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &.pulse-active {
+        box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+        border-color: #3b82f6 !important;
+        transform: translateY(-5px);
+    }
+}
+
+.card-gradient {
+    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    padding: 1rem;
+}
+
+.mini-stat {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.75rem 0.25rem;
+    border-radius: 0.5rem;
+
+    .label {
+        display: block;
+        font-size: 0.65rem;
+        color: #94a3b8;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+    }
+
+    .value {
+        font-size: 1.25rem;
+        font-weight: 800;
+    }
+}
+
+.chart-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+
+    .percentage {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: white;
+        line-height: 1;
+    }
+
+    .sub {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+}
+
+.scale-hover {
+    transition: transform 0.2s;
+    &:hover {
+        transform: scale(1.05);
+    }
+}
+
+.tracking-wider { letter-spacing: 0.1em; }
