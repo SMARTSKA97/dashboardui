@@ -42,16 +42,9 @@ export class LoginComponent {
     });
   }
 
-  quickLogin(role: 'admin' | 'approver' | 'operator') {
-    const creds = {
-      admin: { u: 'Admin', p: 'pass' },
-      approver: { u: 'DDO001_APPROVER', p: 'pass' },
-      operator: { u: 'DDO001_OP1', p: 'pass' }
-    };
-
-    const target = creds[role];
-    this.username = target.u;
-    this.password = target.p;
+  quickLogin(userId: string) {
+    this.username = userId;
+    this.password = 'pass';
     this.onLogin();
   }
 }

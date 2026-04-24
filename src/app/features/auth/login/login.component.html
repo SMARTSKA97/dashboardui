@@ -18,17 +18,28 @@
       <div class="mt-4 border-top-1 border-gray-100 pt-4">
         <span class="text-600 font-bold text-xs uppercase tracking-widest block mb-3 text-center">Instant Access (Demo Mode)</span>
         <div class="flex flex-column gap-2">
-            <p-button label="Super Admin" icon="pi pi-shield" (onClick)="quickLogin('admin')" 
+            <p-button label="Super Admin (Watcher)" icon="pi pi-shield" (onClick)="quickLogin('Admin')" 
                       severity="contrast" [outlined]="true" styleClass="w-full text-left" class="quick-btn"></p-button>
-            <div class="grid grid-nogutter gap-2">
-                <div class="col">
-                    <p-button label="Approver" icon="pi pi-check-circle" (onClick)="quickLogin('approver')" 
-                              severity="info" [outlined]="true" styleClass="w-full" class="quick-btn"></p-button>
-                </div>
-                <div class="col">
-                    <p-button label="Operator" icon="pi pi-user-edit" (onClick)="quickLogin('operator')" 
-                              severity="secondary" [outlined]="true" styleClass="w-full" class="quick-btn"></p-button>
-                </div>
+            
+            <p-button label="Approver (Authority)" icon="pi pi-check-circle" (onClick)="quickLogin('DDO001_APPROVER')" 
+                      severity="info" [outlined]="true" styleClass="w-full text-left" class="quick-btn"></p-button>
+
+            <div class="flex flex-column gap-1">
+              <span class="text-500 text-xs font-semibold ml-1">Operators:</span>
+              <div class="grid grid-nogutter gap-2">
+                  <div class="col">
+                      <p-button label="OP 1" icon="pi pi-user" (onClick)="quickLogin('DDO001_OP1')" 
+                                severity="secondary" [outlined]="true" styleClass="w-full" class="quick-btn"></p-button>
+                  </div>
+                  <div class="col">
+                      <p-button label="OP 2" icon="pi pi-user" (onClick)="quickLogin('DDO001_OP2')" 
+                                severity="secondary" [outlined]="true" styleClass="w-full" class="quick-btn"></p-button>
+                  </div>
+                  <div class="col">
+                      <p-button label="OP 3" icon="pi pi-user" (onClick)="quickLogin('DDO001_OP3')" 
+                                severity="secondary" [outlined]="true" styleClass="w-full" class="quick-btn"></p-button>
+                  </div>
+              </div>
             </div>
         </div>
       </div>

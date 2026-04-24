@@ -25,6 +25,9 @@ export interface DashboardPulse {
   ar?: number; // appRcvd
   rb?: number; // rejBill
   sl?: number; // systemLoad
+  c?: number;  // cpu
+  m?: number;  // mem
+  d?: number;  // db
 }
 
 export interface DashboardMetrics {
@@ -35,6 +38,9 @@ export interface DashboardMetrics {
   receivedByApprover: number;
   rejectedByApprover: number;
   systemLoad: number;
+  cpu?: number;
+  mem?: number;
+  db?: number;
   context: string;
   lastUpdateEvent?: string;
 }

@@ -94,7 +94,6 @@ export class SignalrService {
     this.hubConnection.on('SystemPressure', (data: DashboardPulse) => {
       console.debug('SignalR Pulse (SystemPressure):', data);
       this.pressureUpdates$.set(data);
-      this.updates$.set(data);
       this.resetInactivityTimer();
     });
 
