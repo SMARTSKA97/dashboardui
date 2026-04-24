@@ -54,16 +54,21 @@
     font-size: 1.1rem;
     border-bottom: none;
   }
-  
   ::ng-deep .p-card-body {
     padding: 1.5rem;
   }
 }
 
-@keyframes flash {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; transform: scale(1.02); }
-  100% { opacity: 1; }
+@keyframes kpi-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.4); }
+  50% { transform: scale(1.02); box-shadow: 0 0 20px 10px rgba(var(--primary-color-rgb), 0.2); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); }
+}
+
+.kpi-pulse {
+  animation: kpi-pulse 1.5s ease-out;
+  border-color: var(--primary-color) !important;
+  z-index: 10;
 }
 
 .animate-pulse {

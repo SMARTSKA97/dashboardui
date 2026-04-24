@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, effect, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, effect, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { DashboardService, DashboardMetrics } from '../../../core/services/dashboard.service';
@@ -21,7 +21,41 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
   private dashService = inject(DashboardService);
   private signalrService = inject(SignalrService);
 
-  metrics = signal<DashboardMetrics[]>([]);
+  historicalBase = signal<DashboardMetrics[]>([]);
+  todayMetrics = signal<DashboardMetrics[]>([]);
+
+  metrics = computed<DashboardMetrics[]>(() => {
+    const hist = this.historicalBase();
+    const live = this.todayMetrics();
+
+    if (hist.length === 0) return live;
+    if (live.length === 0) return hist;
+
+    const result = hist.map((h, i) => {
+      const l = live[i] || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: h.context };
+      const merged = {
+        ...h,
+        receivedFto: (h.receivedFto || 0) + (l.receivedFto || 0),
+        processedFto: (h.processedFto || 0) + (l.processedFto || 0),
+        generatedBills: (h.generatedBills || 0) + (l.generatedBills || 0),
+        forwardedToTreasury: (h.forwardedToTreasury || 0) + (l.forwardedToTreasury || 0),
+        receivedByApprover: (h.receivedByApprover || 0) + (l.receivedByApprover || 0),
+        rejectedByApprover: (h.rejectedByApprover || 0) + (l.rejectedByApprover || 0),
+        systemLoad: l.systemLoad || h.systemLoad || 0
+      };
+      
+      console.debug(`Pressure: Merged [${h.context}]`, { 
+        histRcvd: h.receivedFto, 
+        liveRcvd: l.receivedFto, 
+        total: merged.receivedFto 
+      });
+      
+      return merged;
+    });
+    
+    return result;
+  });
+
   systemLoad = signal<number>(0);
   isSimulating = signal<boolean>(false);
 
@@ -38,9 +72,13 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
 
       // Targeted Pressure Monitoring (Independent from KPI traffic)
       if (pulse && status) {
-        this.metrics.update((prev: DashboardMetrics[]) => {
-          if (prev.length < 3) return prev;
-          const next = [...prev];
+        console.debug('Pressure: Applying Pulse to Today Metrics', pulse);
+        this.todayMetrics.update((prev: DashboardMetrics[]) => {
+          const next = prev.length >= 3 ? [...prev] : [
+            { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: 'Admin' },
+            { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: 'Approver' },
+            { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: 'Operator' }
+          ];
           const val = pulse;
 
           // SCOPE INDEXING: Precise mapping for large-scale dashboard
@@ -54,15 +92,15 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
             const current = next[idx];
             const updated = { ...current };
 
-            // MERGE DELTA: No API call needed
-            if (val.rf !== undefined) updated.receivedFto = val.rf;
-            if (val.pf !== undefined) updated.processedFto = val.pf;
-            if (val.gb !== undefined) updated.generatedBills = val.gb;
-            if (val.ar !== undefined) updated.receivedByApprover = val.ar;
-            if (val.rb !== undefined) updated.rejectedByApprover = val.rb;
-            if (val.ft !== undefined) updated.forwardedToTreasury = val.ft;
+            // MERGE DELTA: Defensive check against nulls
+            if (val.rf != null) updated.receivedFto = val.rf;
+            if (val.pf != null) updated.processedFto = val.pf;
+            if (val.gb != null) updated.generatedBills = val.gb;
+            if (val.ar != null) updated.receivedByApprover = val.ar;
+            if (val.rb != null) updated.rejectedByApprover = val.rb;
+            if (val.ft != null) updated.forwardedToTreasury = val.ft;
 
-            if (scope === 'Admin' && val.sl !== undefined) {
+            if (scope === 'Admin' && val.sl != null) {
               this.systemLoad.set(val.sl);
               updated.systemLoad = val.sl;
             }
@@ -72,7 +110,7 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
 
           return next;
         });
-        this.triggerPulse((pulse.sc || 'Pulse').toLowerCase());
+        this.triggerPulse(pulse.sc || 'Pulse');
       }
     });
 
@@ -115,12 +153,47 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
     // Dynamic Date Mapping
     const startYear = 2000 + Math.floor(fy / 100);
     const startDate = new Date(startYear, 3, 1);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date(today.getTime() - 1);
 
-    this.dashService.getComparison(fy, 'DDO001', 'DDO001_OP1', startDate, new Date()).subscribe(res => {
-      this.metrics.set(res);
-      if (res.length > 0) {
-        this.systemLoad.set(res[0].systemLoad);
-      }
+    import('rxjs').then(({ forkJoin }) => {
+      forkJoin({
+        hist: this.dashService.getComparison(fy, 'DDO001', 'DDO001_OP1', startDate, yesterdayEnd),
+        live: this.dashService.getComparison(fy, 'DDO001', 'DDO001_OP1', today, new Date())
+      }).subscribe(({ hist, live }) => {
+        console.debug('Pressure: Split Comparison Loaded', { hist, live });
+        this.historicalBase.set(hist);
+        
+        // MERGE LOGIC: Targeted scope merging for pressure component
+        this.todayMetrics.update(curr => {
+          if (!curr || curr.length === 0) return live;
+          const next = [...curr];
+          live.forEach((l, i) => {
+            if (next[i]) {
+              next[i] = {
+                ...next[i],
+                receivedFto: Math.max(next[i].receivedFto || 0, l.receivedFto || 0),
+                processedFto: Math.max(next[i].processedFto || 0, l.processedFto || 0),
+                generatedBills: Math.max(next[i].generatedBills || 0, l.generatedBills || 0),
+                forwardedToTreasury: Math.max(next[i].forwardedToTreasury || 0, l.forwardedToTreasury || 0),
+                receivedByApprover: Math.max(next[i].receivedByApprover || 0, l.receivedByApprover || 0),
+                rejectedByApprover: Math.max(next[i].rejectedByApprover || 0, l.rejectedByApprover || 0),
+                systemLoad: l.systemLoad || next[i].systemLoad || 0
+              };
+            } else {
+              next[i] = l;
+            }
+          });
+          return next;
+        });
+
+        if (live.length > 0) {
+          this.systemLoad.set(live[0].systemLoad);
+        } else if (hist.length > 0) {
+          this.systemLoad.set(hist[0].systemLoad);
+        }
+      });
     });
   }
 

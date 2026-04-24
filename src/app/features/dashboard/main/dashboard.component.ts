@@ -48,20 +48,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!base && !live) return null;
     const b = base || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: '' };
     const l = live || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: '' };
-    return {
-      receivedFto: b.receivedFto + l.receivedFto,
-      processedFto: b.processedFto + l.processedFto,
-      generatedBills: b.generatedBills + l.generatedBills,
-      forwardedToTreasury: b.forwardedToTreasury + l.forwardedToTreasury,
-      receivedByApprover: b.receivedByApprover + l.receivedByApprover,
-      rejectedByApprover: b.rejectedByApprover + l.rejectedByApprover,
-      systemLoad: l.systemLoad || b.systemLoad, // Use live load if available
-      context: l.context || b.context          // Use live context if available
+    const res = {
+      receivedFto: (b.receivedFto || 0) + (l.receivedFto || 0),
+      processedFto: (b.processedFto || 0) + (l.processedFto || 0),
+      generatedBills: (b.generatedBills || 0) + (l.generatedBills || 0),
+      forwardedToTreasury: (b.forwardedToTreasury || 0) + (l.forwardedToTreasury || 0),
+      receivedByApprover: (b.receivedByApprover || 0) + (l.receivedByApprover || 0),
+      rejectedByApprover: (b.rejectedByApprover || 0) + (l.rejectedByApprover || 0),
+      systemLoad: l.systemLoad || b.systemLoad || 0,
+      context: l.context || b.context || ''
     };
+    
+    console.debug('Dashboard: Computed Metrics Result', { 
+      historical: b.receivedFto, 
+      todayLive: l.receivedFto, 
+      final: res.receivedFto 
+    });
+    
+    return res;
   });
 
   // UI Restoration Properties
-  dateRange: Date[] = [new Date(), new Date()];
+  dateRange = signal<Date[]>([new Date(), new Date()]);
   selectedPreset = 'year';
   datePresets = [
     { label: 'Today', value: 'today' },
@@ -103,7 +111,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private syncPoller: any;
 
   isRealTimeApplicable = computed(() => {
-    const range = this.dateRange;
+    const range = this.dateRange();
     if (!range || !range[0]) return false;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const start = new Date(range[0]); start.setHours(0, 0, 0, 0);
@@ -132,19 +140,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
       // ENTERPRISE GATING: Optimized Pulse Handling
       if (pulse && this.isRealTimeApplicable()) {
+        console.debug('Dashboard: Applying SignalR Pulse to Today Metrics', pulse);
         this.todayMetrics.update(curr => {
           const next = curr ? { ...curr } : { 
             receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, 
             receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: pulse.sc || 'Pulse' 
           };
 
-          if (pulse.rf !== undefined) next.receivedFto = pulse.rf;
-          if (pulse.pf !== undefined) next.processedFto = pulse.pf;
-          if (pulse.gb !== undefined) next.generatedBills = pulse.gb;
-          if (pulse.ft !== undefined) next.forwardedToTreasury = pulse.ft;
-          if (pulse.ar !== undefined) next.receivedByApprover = pulse.ar;
-          if (pulse.rb !== undefined) next.rejectedByApprover = pulse.rb;
-          if (pulse.sl !== undefined) next.systemLoad = pulse.sl;
+          if (pulse.rf != null) next.receivedFto = pulse.rf;
+          if (pulse.pf != null) next.processedFto = pulse.pf;
+          if (pulse.gb != null) next.generatedBills = pulse.gb;
+          if (pulse.ft != null) next.forwardedToTreasury = pulse.ft;
+          if (pulse.ar != null) next.receivedByApprover = pulse.ar;
+          if (pulse.rb != null) next.rejectedByApprover = pulse.rb;
+          if (pulse.sl != null) next.systemLoad = pulse.sl;
 
           return next;
         });
@@ -239,7 +248,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.selectionMode.set('single');
         this.datepickerView.set('date');
         this.datepickerFormat.set('dd/mm/yy');
-        this.dateRange = [now];
+        this.dateRange.set([now]);
         break;
       case 'week':
         start.setDate(now.getDate() - now.getDay()); start.setHours(0, 0, 0, 0); break;
@@ -262,7 +271,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     const maxEnd = now.getTime() < end.getTime() ? now : end;
-    this.dateRange = [start, maxEnd];
+    this.dateRange.set([start, maxEnd]);
     this.refreshMetrics();
   }
 
@@ -281,14 +290,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'q4': start = new Date(startYear + 1, 0, 1); end = new Date(startYear + 1, 2, 31, 23, 59, 59); break;
       default: return;
     }
-    this.dateRange = [start, end];
+    this.dateRange.set([start, end]);
     this.refreshMetrics();
   }
 
   refreshMetrics() {
     const fy = this.dashService.activeFy();
-    const start = this.dateRange[0];
-    const end = this.dateRange[1] || new Date();
+    const range = this.dateRange();
+    const start = range[0];
+    const end = range[1] || new Date();
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
     if (this.isRealTimeApplicable()) {
@@ -297,8 +307,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
         hist: this.dashService.getMetrics(fy, start, yesterdayEnd),
         live: this.dashService.getMetrics(fy, today, end)
       }).subscribe(({ hist, live }) => {
+        console.debug('Dashboard: Split Metrics Loaded', { hist, live });
         this.historicalBase.set(hist);
-        this.todayMetrics.set(live);
+        
+        // MERGE LOGIC: Prevent overwriting live SignalR data with stale API data
+        this.todayMetrics.update(curr => {
+          if (!curr || !live) return live;
+          return {
+            ...curr,
+            receivedFto: Math.max(curr.receivedFto || 0, live.receivedFto || 0),
+            processedFto: Math.max(curr.processedFto || 0, live.processedFto || 0),
+            generatedBills: Math.max(curr.generatedBills || 0, live.generatedBills || 0),
+            forwardedToTreasury: Math.max(curr.forwardedToTreasury || 0, live.forwardedToTreasury || 0),
+            receivedByApprover: Math.max(curr.receivedByApprover || 0, live.receivedByApprover || 0),
+            rejectedByApprover: Math.max(curr.rejectedByApprover || 0, live.rejectedByApprover || 0),
+            systemLoad: live.systemLoad || curr.systemLoad || 0,
+            context: live.context || curr.context || ''
+          };
+        });
       });
     } else {
       this.dashService.getMetrics(fy, start, end).subscribe(m => {
