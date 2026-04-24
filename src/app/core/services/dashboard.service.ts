@@ -129,4 +129,13 @@ export class DashboardService {
   runCycle() {
     return this.http.post(`${environment.apiUrl}/Simulation/run-cycle`, {});
   }
+
+  getMetricsGap(groupName: string, lastId: number, currentId: number) {
+    const params = new HttpParams()
+      .set('groupName', groupName)
+      .set('lastId', lastId)
+      .set('currentId', currentId);
+
+    return this.http.get<any[]>(`${this.apiUrl}/metrics-gap`, { params });
+  }
 }

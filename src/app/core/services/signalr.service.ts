@@ -3,7 +3,14 @@ import * as signalR from '@microsoft/signalr';
 import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 import { AuthService } from './auth.service';
 import { environment } from '../../../environments/environment';
-import { DashboardPulse } from './dashboard.service';
+import { DashboardPulse, DashboardService } from './dashboard.service';
+
+export interface SequencedPulse {
+  g: string; // GroupName
+  sid: number; // Sequence ID
+  m: string; // Method Name
+  d: DashboardPulse; // Payload
+}
 
 /**
  * Enterprise Resilience: Jittered Exponential Backoff Retry Policy
@@ -29,11 +36,15 @@ class JitteredRetryPolicy implements signalR.IRetryPolicy {
 })
 export class SignalrService {
   private auth = inject(AuthService);
+  private dashService = inject(DashboardService);
   private hubConnection: signalR.HubConnection | null = null;
 
   // Targeted Signals for Enterprise Observability
   updates$ = signal<DashboardPulse | null>(null);
   pressureUpdates$ = signal<DashboardPulse | null>(null);
+
+  private lastSids = new Map<string, number>();
+  private isRecovering = new Set<string>();
 
   private joinQueue: string[] = [];
   
@@ -84,17 +95,13 @@ export class SignalrService {
       .withAutomaticReconnect(new JitteredRetryPolicy())
       .build();
 
-    // Unified Listeners (Optimized Binary Stream)
-    this.hubConnection.on('DashboardUpdate', (data: DashboardPulse) => {
-      console.debug('SignalR Pulse (DashboardUpdate):', data);
-      this.updates$.set(data);
-      this.resetInactivityTimer();
+    // Sequenced Listeners: Gap Detection Enabled
+    this.hubConnection.on('DashboardUpdate', (data: SequencedPulse) => {
+      this.handlePulse(data);
     });
 
-    this.hubConnection.on('SystemPressure', (data: DashboardPulse) => {
-      console.debug('SignalR Pulse (SystemPressure):', data);
-      this.pressureUpdates$.set(data);
-      this.resetInactivityTimer();
+    this.hubConnection.on('SystemPressure', (data: SequencedPulse) => {
+      this.handlePulse(data);
     });
 
     this.hubConnection.start()
@@ -134,10 +141,57 @@ export class SignalrService {
   public async leaveGroup(target: string, scope: string) {
     const groupName = `${target}:${scope}`;
     this.joinQueue = this.joinQueue.filter(g => g !== groupName);
+    this.lastSids.delete(groupName);
 
     if (this.hubConnection?.state === signalR.HubConnectionState.Connected) {
       await this.hubConnection.invoke('LeaveGroup', groupName);
       console.log(`Left Group: ${groupName}`);
+    }
+  }
+
+  private handlePulse(pulse: SequencedPulse) {
+    const group = pulse.g;
+    const currentSid = pulse.sid;
+    const lastSid = this.lastSids.get(group) || 0;
+
+    // Detect Gap
+    if (lastSid !== 0 && currentSid > lastSid + 1) {
+      console.warn(`SignalR Gap Detected in [${group}]: Missing ${currentSid - lastSid - 1} messages.`);
+      this.fetchGap(group, lastSid, currentSid);
+    }
+
+    this.lastSids.set(group, currentSid);
+    this.applyPulse(pulse);
+    this.resetInactivityTimer();
+  }
+
+  private fetchGap(group: string, lastId: number, currentId: number) {
+    if (this.isRecovering.has(group)) return;
+    this.isRecovering.add(group);
+
+    // Thundering Herd Protection: Random Jitter for backfill
+    const jitter = Math.random() * 2000; 
+    setTimeout(() => {
+      this.dashService.getMetricsGap(group, lastId, currentId).subscribe({
+        next: (missedPulses: SequencedPulse[]) => {
+          console.log(`SignalR Gap Recovered: Fetched ${missedPulses.length} pulses for [${group}]`);
+          missedPulses.forEach(p => this.applyPulse(p));
+          this.isRecovering.delete(group);
+        },
+        error: (err) => {
+          console.error(`SignalR Gap Recovery Failed for [${group}]`, err);
+          this.isRecovering.delete(group);
+        }
+      });
+    }, jitter);
+  }
+
+  private applyPulse(pulse: SequencedPulse) {
+    if (pulse.m === 'DashboardUpdate') {
+      this.updates$.set(pulse.d);
+    } else if (pulse.m === 'SystemPressure') {
+      this.pressureUpdates$.set(pulse.d);
+      this.updates$.set(pulse.d);
     }
   }
 }
