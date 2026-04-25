@@ -9,11 +9,11 @@
       </p>
     </div>
     
-    <div class="filters-panel flex flex-column sm:flex-row sm:flex-wrap align-items-stretch sm:align-items-center gap-3 w-full xl:w-auto">
+    <div class="flex flex-wrap align-items-center gap-3 w-full xl:w-auto">
         <!-- Manual Baseline Refresh (Backend Restricted) -->
         @if (canShowManualControls()) {
           <div class="flex flex-row align-items-center gap-3">
-             <p-button icon="pi pi-sync" severity="help" [text]="true" label="Update Status Baseline"
+             <p-button icon="pi pi-sync" severity="help" [text]="true" label="Update Status"
                        (onClick)="refreshBaseline()" [disabled]="dashService.activeStatus()?.is_allowed === false"
                        pTooltip="Enforced 24h Cooldown Guardrail"
                        [styleClass]="'shadow-1 border-round-xl'"></p-button>
@@ -27,26 +27,38 @@
           </div>
         }
 
-        <p-select [options]="datePresets" [(ngModel)]="selectedPreset" 
-                    optionLabel="label" optionValue="value"
-                    (onChange)="onPresetChange()"
-                    styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
+        <div class="filters-panel flex flex-wrap align-items-stretch sm:align-items-center gap-3 flex-1">
+        <div class="p-inputgroup w-full sm:w-15rem shadow-1 h-3rem border-round-xl overflow-hidden">
+          <span class="p-inputgroup-addon bg-primary-50 text-primary border-none"><i class="pi pi-filter"></i></span>
+          <p-select [options]="[ {label:'Financial Year', value:'FinancialYear'}, {label:'Quarter', value:'Quarter'}, {label:'Month', value:'Month'}, {label:'Daily', value:'Daily'} ]" 
+                   [(ngModel)]="rangeType" 
+                   (onChange)="onSelectionChange()" 
+                   styleClass="w-full border-none"
+                   placeholder="Range Type"></p-select>
+        </div>
 
-        @if (isQuarterMode()) {
-            <p-select [options]="quarters" [(ngModel)]="selectedQuarter" 
-                        optionLabel="label" optionValue="value"
-                        (onChange)="onQuarterSelected()"
-                        styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
-        }
+        <!-- Hierarchical Controls -->
+        <p-select [options]="fyOptions()" [(ngModel)]="selectedFY" 
+                 (onChange)="onSelectionChange()" 
+                 *ngIf="rangeType() !== 'Daily'"
+                 styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
         
-        <p-datepicker [(ngModel)]="dateRange" 
-                     [selectionMode]="selectionMode()" 
-                     [view]="datepickerView()" 
-                     [dateFormat]="datepickerFormat()"
-                     [showIcon]="true" 
-                     (onSelect)="refreshMetrics()"
-                     styleClass="w-full sm:w-16rem shadow-1 h-3rem border-round-xl" 
-                     placeholder="Select Interval"></p-datepicker>
+        <p-select [options]="quarterOptions" [(ngModel)]="selectedQuarter" 
+                 (onChange)="onSelectionChange()" 
+                 *ngIf="rangeType() === 'Quarter'"
+                 styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
+        
+        <p-select [options]="monthOptions()" [(ngModel)]="selectedMonth" 
+                 (onChange)="onSelectionChange()" 
+                 *ngIf="rangeType() === 'Month'"
+                 styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
+        
+        <p-datepicker [(ngModel)]="selectedDate" 
+                     (onSelect)="onSelectionChange()" 
+                     *ngIf="rangeType() === 'Daily'" 
+                     [showIcon]="true"
+                     styleClass="w-full sm:w-16rem shadow-1 h-3rem border-round-xl"
+                     placeholder="Select Date"></p-datepicker>
                      
         <p-tag [value]="isRealTimeApplicable() ? 'LIVE SYNC ACTIVE' : 'HISTORICAL (PAUSED)'" 
                [severity]="isRealTimeApplicable() ? 'success' : 'info'" 
