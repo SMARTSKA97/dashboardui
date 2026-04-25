@@ -25,6 +25,8 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
 
   historicalBase = signal<DashboardMetrics[]>([]);
   todayMetrics = signal<DashboardMetrics[]>([]);
+  selectedFY = signal<number>(2627);
+
 
   metrics = computed<DashboardMetrics[]>(() => {
     const hist = this.historicalBase();
@@ -89,9 +91,9 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
 
           let idx = next.findIndex(m => m.context === scope);
           if (idx === -1) {
-            next.push({ 
-              receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, 
-              receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: scope 
+            next.push({
+              receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0,
+              receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: scope
             });
             idx = next.length - 1;
             // Keep Admin/Approver at top
@@ -175,51 +177,27 @@ export class SystemPressureComponent implements OnInit, OnDestroy {
   }
 
   loadData() {
-    const fy = this.dashService.activeFy();
-    // Dynamic Date Mapping
+    const user = this.auth.currentUser();
+    if (!user) return;
+
+    const fy = this.selectedFY ? this.selectedFY() : this.dashService.activeFy();
+    const today = new Date();
     const startYear = 2000 + Math.floor(fy / 100);
     const startDate = new Date(startYear, 3, 1);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const yesterdayEnd = new Date(today.getTime() - 1);
+    const endDate = new Date(startYear + 1, 2, 31, 23, 59, 59);
 
-    import('rxjs').then(({ forkJoin }) => {
-      forkJoin({
-        hist: this.dashService.getComparison(fy, 'DDO001', 'DDO001_OP1', startDate, yesterdayEnd),
-        live: this.dashService.getComparison(fy, 'DDO001', 'DDO001_OP1', today, new Date())
-      }).subscribe(({ hist, live }) => {
-        console.debug('Pressure: Split Comparison Loaded', { hist, live });
-        this.historicalBase.set(hist);
+    this.dashService.getSmartMetrics(fy, user.ddoCode || 'DDO001', user.userId || 'Admin', 'FinancialYear', startDate, endDate).subscribe(res => {
+      console.debug('Pressure: Smart Metrics Loaded', res);
 
-        // MERGE LOGIC: Targeted scope merging for pressure component
-        this.todayMetrics.update(curr => {
-          if (!curr || curr.length === 0) return live;
-          const next = [...curr];
-          live.forEach((l, i) => {
-            if (next[i]) {
-              next[i] = {
-                ...next[i],
-                receivedFto: Math.max(next[i].receivedFto || 0, l.receivedFto || 0),
-                processedFto: Math.max(next[i].processedFto || 0, l.processedFto || 0),
-                generatedBills: Math.max(next[i].generatedBills || 0, l.generatedBills || 0),
-                forwardedToTreasury: Math.max(next[i].forwardedToTreasury || 0, l.forwardedToTreasury || 0),
-                receivedByApprover: Math.max(next[i].receivedByApprover || 0, l.receivedByApprover || 0),
-                rejectedByApprover: Math.max(next[i].rejectedByApprover || 0, l.rejectedByApprover || 0),
-                systemLoad: l.systemLoad || next[i].systemLoad || 0
-              };
-            } else {
-              next[i] = l;
-            }
-          });
-          return next;
-        });
+      // Since it's for the full FY, it includes today. 
+      // Smart API already merged historical + today.
+      this.historicalBase.set([]);
+      this.todayMetrics.set(res);
 
-        if (live.length > 0) {
-          this.systemLoad.set(live[0].systemLoad);
-        } else if (hist.length > 0) {
-          this.systemLoad.set(hist[0].systemLoad);
-        }
-      });
+      if (res.length > 0) {
+        const admin = res.find(m => m.context === 'Admin') || res[0];
+        this.systemLoad.set(admin.systemLoad);
+      }
     });
   }
 

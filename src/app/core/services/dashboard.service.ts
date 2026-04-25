@@ -43,6 +43,14 @@ export interface DashboardMetrics {
   db?: number;
   context: string;
   lastUpdateEvent?: string;
+
+  // Real-time delta support
+  todayReceivedFto?: number;
+  todayProcessedFto?: number;
+  todayGeneratedBills?: number;
+  todayForwardedToTreasury?: number;
+  todayReceivedByApprover?: number;
+  todayRejectedByApprover?: number;
 }
 
 @Injectable({

@@ -40,36 +40,61 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // Elite Split-Snapshot State
   historicalBase = signal<DashboardMetrics | null>(null);
-  todayMetrics = signal<DashboardMetrics | null>(null);
+  liveOverwrites = signal<DashboardMetrics | null>(null);
 
   metrics = computed<DashboardMetrics | null>(() => {
     const base = this.historicalBase();
-    const live = this.todayMetrics();
-    if (!base && !live) return null;
-    const b = base || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: '' };
-    const l = live || { receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: '' };
-    const res = {
-      receivedFto: (b.receivedFto || 0) + (l.receivedFto || 0),
-      processedFto: (b.processedFto || 0) + (l.processedFto || 0),
-      generatedBills: (b.generatedBills || 0) + (l.generatedBills || 0),
-      forwardedToTreasury: (b.forwardedToTreasury || 0) + (l.forwardedToTreasury || 0),
-      receivedByApprover: (b.receivedByApprover || 0) + (l.receivedByApprover || 0),
-      rejectedByApprover: (b.rejectedByApprover || 0) + (l.rejectedByApprover || 0),
-      systemLoad: l.systemLoad || b.systemLoad || 0,
-      context: l.context || b.context || ''
+    const live = this.liveOverwrites();
+    
+    if (!base) return null;
+
+    // BASELINE: The total amount before "today" started (or before this session's pulse)
+    // We calculate this by subtracting the "Today" portion returned by the API
+    const baseline = {
+      receivedFto: base.receivedFto - (base.todayReceivedFto || 0),
+      processedFto: base.processedFto - (base.todayProcessedFto || 0),
+      generatedBills: base.generatedBills - (base.todayGeneratedBills || 0),
+      forwardedToTreasury: base.forwardedToTreasury - (base.todayForwardedToTreasury || 0),
+      receivedByApprover: base.receivedByApprover - (base.todayReceivedByApprover || 0),
+      rejectedByApprover: base.rejectedByApprover - (base.todayRejectedByApprover || 0)
     };
-    
-    console.debug('Dashboard: Computed Metrics Result', { 
-      historical: b.receivedFto, 
-      todayLive: l.receivedFto, 
-      final: res.receivedFto 
-    });
-    
-    return res;
+
+    // If not in real-time mode, just return the base total
+    if (!this.isRealTimeApplicable()) return base;
+
+    // LIVE: Use either the SignalR pulse total for today, or the API's today total if no pulse yet
+    const today = live || {
+      receivedFto: base.todayReceivedFto || 0,
+      processedFto: base.todayProcessedFto || 0,
+      generatedBills: base.todayGeneratedBills || 0,
+      forwardedToTreasury: base.todayForwardedToTreasury || 0,
+      receivedByApprover: base.todayReceivedByApprover || 0,
+      rejectedByApprover: base.todayRejectedByApprover || 0,
+      systemLoad: base.systemLoad || 0,
+      context: base.context || ''
+    };
+
+    return {
+      ...base,
+      receivedFto: baseline.receivedFto + today.receivedFto,
+      processedFto: baseline.processedFto + today.processedFto,
+      generatedBills: baseline.generatedBills + today.generatedBills,
+      forwardedToTreasury: baseline.forwardedToTreasury + today.forwardedToTreasury,
+      receivedByApprover: baseline.receivedByApprover + today.receivedByApprover,
+      rejectedByApprover: baseline.rejectedByApprover + today.rejectedByApprover,
+      systemLoad: today.systemLoad || base.systemLoad,
+      context: today.context || base.context || 'Real-time'
+    } as DashboardMetrics;
   });
 
   // NEW: Hierarchical Selection System
   rangeType = signal<'FinancialYear' | 'Quarter' | 'Month' | 'Daily'>('FinancialYear');
+  rangeTypeOptions = [
+    { label: 'Financial Year', value: 'FinancialYear' },
+    { label: 'Quarter', value: 'Quarter' },
+    { label: 'Month', value: 'Month' },
+    { label: 'Daily', value: 'Daily' }
+  ];
   
   fyOptions = signal<{label: string, value: number}[]>([]);
   quarterOptions = [
@@ -153,13 +178,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     effect(() => {
       const pulse = this.signalr.updates$();
       if (pulse && this.isRealTimeApplicable()) {
-        console.debug('Dashboard: Applying SignalR Pulse to Today Metrics', pulse);
-        this.todayMetrics.update(curr => {
+        console.debug('Dashboard: Applying SignalR Total Pulse', pulse);
+        this.liveOverwrites.update(curr => {
           const next = curr ? { ...curr } : { 
             receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, 
             receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: pulse.sc || 'Pulse' 
           };
 
+          // Update with absolute totals from pulse
           if (pulse.rf != null) next.receivedFto = pulse.rf;
           if (pulse.pf != null) next.processedFto = pulse.pf;
           if (pulse.gb != null) next.generatedBills = pulse.gb;
@@ -167,10 +193,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
           if (pulse.ar != null) next.receivedByApprover = pulse.ar;
           if (pulse.rb != null) next.rejectedByApprover = pulse.rb;
           if (pulse.sl != null) next.systemLoad = pulse.sl;
+          next.context = pulse.sc || next.context;
 
           return next;
         });
 
+        // Trigger animations
         if (pulse.rf !== undefined) this.triggerFlash('FTO_RCVD');
         if (pulse.pf !== undefined || pulse.gb !== undefined) this.triggerFlash('FTO_PROCESSED,BILL_GEN');
         if (pulse.ar !== undefined) this.triggerFlash('APP_RCVD');
@@ -188,6 +216,27 @@ export class DashboardComponent implements OnInit, OnDestroy {
         };
       }
     });
+
+    // SYNC: Ensure dropdown FY matches the Source of Truth from backend
+    effect(() => {
+      const activeFy = this.dashService.activeFy();
+      if (activeFy) {
+        console.debug('Dashboard: Syncing selectedFY with Source of Truth', activeFy);
+        
+        // Re-generate options based on active FY if needed
+        const currentYear = 2000 + Math.floor(activeFy / 100);
+        const fys = [];
+        for (let i = 0; i < 3; i++) {
+            const y = (currentYear - i) % 100;
+            const fy = (y * 100) + (y + 1);
+            fys.push({ label: `FY 20${Math.floor(fy/100)}-${fy%100}`, value: fy });
+        }
+        this.fyOptions.set(fys);
+        
+        this.selectedFY.set(activeFy);
+        this.refreshMetrics();
+      }
+    });
   }
 
   ngOnInit() {
@@ -200,19 +249,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private initPeriodOptions() {
     const now = new Date();
-    const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1; // 1-indexed
     
-    // FY Options
-    const fys = [];
-    for (let i = 0; i < 3; i++) {
-        const y = (currentYear - i) % 100;
-        const fy = currentMonth >= 4 ? (y * 100) + (y + 1) : ((y - 1) * 100) + y;
-        fys.push({ label: `FY 20${Math.floor(fy/100)}-${fy%100}`, value: fy });
-    }
-    this.fyOptions.set(fys);
-    this.selectedFY.set(fys[0].value);
-
     // Month Options
     const months = [
         { label: 'April', value: 4 }, { label: 'May', value: 5 }, { label: 'June', value: 6 },
@@ -227,8 +265,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.selectedQuarter.set(currentMonth >= 4 && currentMonth <= 6 ? 1 : 
                          currentMonth >= 7 && currentMonth <= 9 ? 2 :
                          currentMonth >= 10 && currentMonth <= 12 ? 3 : 4);
-    
-    this.refreshMetrics();
   }
 
   private setupSyncPoller() {
@@ -272,6 +308,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   refreshMetrics() {
+    this.liveOverwrites.set(null); // Clear session deltas on selection change
     const user = this.auth.currentUser();
     if (!user) return;
 
@@ -305,18 +342,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     this.dashService.getSmartMetrics(fy, user.ddoCode || '', user.userId, type, start, end).subscribe(res => {
-        // Map the correct role from the array
         const role = user.role;
         const metrics = res.find(m => m.context === role) || res[0];
         
-        const isLive = this.isRealTimeApplicable();
-        if (isLive) {
-            this.historicalBase.set(null); // Smart API already merged historical + today on backend
-            this.todayMetrics.set(metrics);
-        } else {
-            this.historicalBase.set(metrics);
-            this.todayMetrics.set(null);
-        }
+        // Always set the API response as the baseline
+        this.historicalBase.set(metrics);
+        // liveOverwrites is cleared at the start of this method
     });
   }
 

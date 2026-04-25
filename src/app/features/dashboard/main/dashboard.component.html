@@ -1,83 +1,87 @@
 <div class="dashboard-page flex flex-column gap-4 lg:gap-5 animate-fade-in">
-  <!-- Header & Filters (Source of Truth Controlled) -->
-  <div class="hero-panel flex flex-column xl:flex-row justify-content-between align-items-start xl:align-items-center gap-4 p-4 lg:p-5 border-round-2xl shadow-2">
-    <div class="min-w-0">
-      <div class="eyebrow">Enterprise Command Center</div>
-      <h1 class="text-2xl sm:text-3xl xl:text-4xl font-bold text-900 m-0">Consolidated Ledger</h1>
-      <p class="text-600 mt-2 font-medium mb-0">
-        <i class="pi pi-calendar mr-2"></i>Optimized {{ dashService.activeFyLabel() }} View
-      </p>
-    </div>
-    
-    <div class="flex flex-wrap align-items-center gap-3 w-full xl:w-auto">
-        <!-- Manual Baseline Refresh (Backend Restricted) -->
-        @if (canShowManualControls()) {
-          <div class="flex flex-row align-items-center gap-3">
-             <p-button icon="pi pi-sync" severity="help" [text]="true" label="Update Status"
-                       (onClick)="refreshBaseline()" [disabled]="dashService.activeStatus()?.is_allowed === false"
-                       pTooltip="Enforced 24h Cooldown Guardrail"
-                       [styleClass]="'shadow-1 border-round-xl'"></p-button>
-             
-             @if (countdownTimer()) {
-               <div class="timer-display flex align-items-center gap-2 px-3 py-2 border-round-xl bg-orange-50 border-1 border-orange-200">
-                 <i class="pi pi-clock text-orange-500 text-sm"></i>
-                 <span class="text-xs text-orange-700 font-bold tabular-nums">RELOAD IN {{ countdownTimer() }}</span>
-               </div>
-             }
-          </div>
-        }
-
-        <div class="filters-panel flex flex-wrap align-items-stretch sm:align-items-center gap-3 flex-1">
-        <div class="p-inputgroup w-full sm:w-15rem shadow-1 h-3rem border-round-xl overflow-hidden">
-          <span class="p-inputgroup-addon bg-primary-50 text-primary border-none"><i class="pi pi-filter"></i></span>
-          <p-select [options]="[ {label:'Financial Year', value:'FinancialYear'}, {label:'Quarter', value:'Quarter'}, {label:'Month', value:'Month'}, {label:'Daily', value:'Daily'} ]" 
-                   [(ngModel)]="rangeType" 
-                   (onChange)="onSelectionChange()" 
-                   styleClass="w-full border-none"
-                   placeholder="Range Type"></p-select>
+    <!-- Header & Filters -->
+    <div
+        class="hero-panel flex flex-column xl:flex-row justify-content-between align-items-stretch xl:align-items-center gap-4 p-4 lg:p-5 border-round-2xl shadow-2 bg-white-alpha-70 backdrop-blur-10">
+        <div class="flex-shrink-0">
+            <div class="eyebrow text-primary font-bold text-xs uppercase tracking-wider mb-2">Enterprise Command Center
+            </div>
+            <h1 class="text-3xl lg:text-4xl font-black text-900 m-0">Consolidated Ledger</h1>
+            <p class="text-600 mt-2 font-medium mb-0">
+                <i class="pi pi-calendar mr-2"></i>Optimized {{ dashService.activeFyLabel() }} View
+            </p>
         </div>
 
-        <!-- Hierarchical Controls -->
-        <p-select [options]="fyOptions()" [(ngModel)]="selectedFY" 
-                 (onChange)="onSelectionChange()" 
-                 *ngIf="rangeType() !== 'Daily'"
-                 styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
-        
-        <p-select [options]="quarterOptions" [(ngModel)]="selectedQuarter" 
-                 (onChange)="onSelectionChange()" 
-                 *ngIf="rangeType() === 'Quarter'"
-                 styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
-        
-        <p-select [options]="monthOptions()" [(ngModel)]="selectedMonth" 
-                 (onChange)="onSelectionChange()" 
-                 *ngIf="rangeType() === 'Month'"
-                 styleClass="w-full sm:w-12rem shadow-1 h-3rem border-round-xl"></p-select>
-        
-        <p-datepicker [(ngModel)]="selectedDate" 
-                     (onSelect)="onSelectionChange()" 
-                     *ngIf="rangeType() === 'Daily'" 
-                     [showIcon]="true"
-                     styleClass="w-full sm:w-16rem shadow-1 h-3rem border-round-xl"
-                     placeholder="Select Date"></p-datepicker>
-                     
-        <p-tag [value]="isRealTimeApplicable() ? 'LIVE SYNC ACTIVE' : 'HISTORICAL (PAUSED)'" 
-               [severity]="isRealTimeApplicable() ? 'success' : 'info'" 
-               class="status-chip shadow-1 uppercase font-bold px-3 py-2 border-round-lg"></p-tag>
-    </div>
-  </div>
+        <div
+            class="flex flex-column sm:flex-row flex-wrap align-items-start sm:align-items-center justify-content-end gap-3 flex-grow-1">
+            <!-- Manual Baseline Refresh -->
+            <!-- @if (canShowManualControls()) {
+            <div class="flex align-items-center gap-2">
+                <p-button icon="pi pi-sync" severity="help" [text]="true" label="Update Status"
+                    (onClick)="refreshBaseline()" [disabled]="dashService.activeStatus()?.is_allowed === false"
+                    pTooltip="Enforced 24h Cooldown Guardrail" styleClass="shadow-sm border-round-xl"></p-button>
 
-  <!-- System Message (Source of Truth) -->
-  @if (dashService.activeStatus()?.message) {
-    <div class="animate-bounce-in">
-        <p-message severity="info" [text]="'System Status: ' + dashService.activeStatus()?.message" styleClass="w-full shadow-1 border-round-xl"></p-message>
-    </div>
-  }
+                @if (countdownTimer()) {
+                <div
+                    class="timer-display flex align-items-center gap-2 px-3 py-2 border-round-xl bg-orange-50 border-1 border-orange-100">
+                    <i class="pi pi-clock text-orange-500 text-xs"></i>
+                    <span class="text-xs text-orange-700 font-bold tabular-nums">{{ countdownTimer() }}s</span>
+                </div>
+                }
+            </div>
+            } -->
 
-  <!-- KPI Cards Layer (Stock Market Style Animation) -->
-  <div class="grid">
-    @for (card of kpiData(); track card.id) {
+            <div class="flex flex-wrap align-items-center gap-2">
+                <div class="flex align-items-center bg-white shadow-sm border-round-xl px-3 overflow-hidden"
+                    style="height: 3rem;">
+                    <i class="pi pi-filter text-primary mr-2"></i>
+                    <p-select [options]="rangeTypeOptions" [ngModel]="rangeType()"
+                        (ngModelChange)="rangeType.set($event); onSelectionChange()" optionLabel="label"
+                        optionValue="value" styleClass="border-none w-10rem" placeholder="Type"
+                        appendTo="body"></p-select>
+                </div>
+
+                <!-- Hierarchical Controls -->
+                <p-select [options]="fyOptions()" [ngModel]="selectedFY()"
+                    (ngModelChange)="selectedFY.set($event); onSelectionChange()" optionLabel="label"
+                    optionValue="value" *ngIf="rangeType() !== 'Daily'"
+                    styleClass="shadow-sm h-3rem border-round-xl w-10rem" appendTo="body"></p-select>
+
+                <p-select [options]="quarterOptions" [ngModel]="selectedQuarter()"
+                    (ngModelChange)="selectedQuarter.set($event); onSelectionChange()" optionLabel="label"
+                    optionValue="value" *ngIf="rangeType() === 'Quarter'"
+                    styleClass="shadow-sm h-3rem border-round-xl w-10rem" appendTo="body"></p-select>
+
+                <p-select [options]="monthOptions()" [ngModel]="selectedMonth()"
+                    (ngModelChange)="selectedMonth.set($event); onSelectionChange()" optionLabel="label"
+                    optionValue="value" *ngIf="rangeType() === 'Month'"
+                    styleClass="shadow-sm h-3rem border-round-xl w-10rem" appendTo="body"></p-select>
+
+                <p-datepicker [ngModel]="selectedDate()" (onSelect)="selectedDate.set($event); onSelectionChange()"
+                    *ngIf="rangeType() === 'Daily'" [showIcon]="true"
+                    styleClass="shadow-sm h-3rem border-round-xl w-14rem" placeholder="Date"
+                    appendTo="body"></p-datepicker>
+
+                <p-tag [value]="isRealTimeApplicable() ? 'LIVE' : 'PAUSED'"
+                    [severity]="isRealTimeApplicable() ? 'success' : 'info'"
+                    styleClass="uppercase font-bold px-3 py-2 border-round-lg shadow-sm"></p-tag>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Message -->
+    @if (dashService.activeStatus()?.message) {
+    <div class="animate-bounce-in mx-2">
+        <p-message severity="info" [text]="'System Status: ' + dashService.activeStatus()?.message"
+            styleClass="w-full shadow-sm border-round-xl"></p-message>
+    </div>
+    }
+
+    <!-- KPI Cards Layer (Stock Market Style Animation) -->
+    <div class="grid">
+        @for (card of kpiData(); track card.id) {
         <div class="col-12 sm:col-6 xl:col-4 2xl:col-2">
-            <p-card [styleClass]="'kpi-card h-full border-none transition-all duration-300 ' + (card.flashing ? 'kpi-pulse shadow-4' : 'shadow-2')">
+            <p-card
+                [styleClass]="'kpi-card h-full border-none transition-all duration-300 ' + (card.flashing ? 'kpi-pulse shadow-4' : 'shadow-2')">
                 <div class="flex flex-column gap-2">
                     <div class="flex justify-content-between align-items-center mb-1">
                         <span class="text-600 font-bold text-xs uppercase tracking-wider">{{ card.title }}</span>
@@ -85,51 +89,56 @@
                             <i [class]="card.icon" [style.color]="card.color"></i>
                         </div>
                     </div>
-                    <div [class]="'text-4xl font-black text-900 line-height-1 transition-all ' + (card.flashing ? 'scale-110' : '')">
+                    <div
+                        [class]="'text-4xl font-black text-900 line-height-1 transition-all ' + (card.flashing ? 'scale-110' : '')">
                         {{ card.value }}
                     </div>
                     <div class="flex align-items-center gap-1 mt-2">
                         <span [class]="'text-xs font-bold ' + (card.trend >= 0 ? 'text-green-500' : 'text-red-500')">
-                            <i [class]="'pi ' + (card.trend >= 0 ? 'pi-arrow-up' : 'pi-arrow-down')"></i> {{ card.trend }}%
+                            <i [class]="'pi ' + (card.trend >= 0 ? 'pi-arrow-up' : 'pi-arrow-down')"></i> {{ card.trend
+                            }}%
                         </span>
                         <span class="text-500 text-xs">pulse rate</span>
                     </div>
                 </div>
             </p-card>
         </div>
-    }
-  </div>
-
-  <!-- Charts & Metadata Layer -->
-  <div class="grid">
-    <div class="col-12 xl:col-8">
-        <p-card header="Financial Velocity Trend" styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
-            <p-chart type="bar" [data]="chartData" [options]="chartOptions" height="350px"></p-chart>
-        </p-card>
+        }
     </div>
-    <div class="col-12 xl:col-4">
-        <p-card header="Enterprise Integrity" styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
-            <div class="flex flex-column gap-4 py-2">
-                <div class="p-4 bg-primary-50 border-round-xl border-left-3 border-primary shadow-sm">
-                    <div class="text-primary font-bold mb-1 text-xs text-uppercase">UNIVERSAL BASELINE</div>
-                    <div class="text-3xl font-black text-primary">MAT-VIEW CLUSTER</div>
-                    <p class="text-600 text-sm mt-1">Admin, Approver, and Operator class FY data is served from unified cache.</p>
-                </div>
-                
-                <div class="p-4 bg-green-50 border-round-xl border-left-3 border-green-500 shadow-sm">
-                    <div class="text-green-600 font-bold mb-1 text-xs text-uppercase">RECONNECT RESILIENCE</div>
-                    <div class="text-3xl font-black text-green-600">JITTERED SYNC</div>
-                    <p class="text-600 text-sm mt-1">Elastic 15m heartbeats protecting server during high load.</p>
-                </div>
 
-                <div class="surface-100 p-4 border-round-xl border-left-3 border-400 shadow-sm">
-                    <div class="text-700 font-bold mb-1 text-xs text-uppercase">LATEST TICKER EVENT</div>
-                    <div class="flex align-items-center gap-2 mt-2">
-                         <p-tag [value]="metrics()?.lastUpdateEvent || 'IDLE'" severity="secondary"></p-tag>
+    <!-- Charts & Metadata Layer -->
+    <div class="grid">
+        <div class="col-12 xl:col-8">
+            <p-card header="Financial Velocity Trend"
+                styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
+                <p-chart type="bar" [data]="chartData" [options]="chartOptions" height="350px"></p-chart>
+            </p-card>
+        </div>
+        <div class="col-12 xl:col-4">
+            <p-card header="Enterprise Integrity"
+                styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
+                <div class="flex flex-column gap-4 py-2">
+                    <div class="p-4 bg-primary-50 border-round-xl border-left-3 border-primary shadow-sm">
+                        <div class="text-primary font-bold mb-1 text-xs text-uppercase">UNIVERSAL BASELINE</div>
+                        <div class="text-3xl font-black text-primary">MAT-VIEW CLUSTER</div>
+                        <p class="text-600 text-sm mt-1">Admin, Approver, and Operator class FY data is served from
+                            unified cache.</p>
+                    </div>
+
+                    <div class="p-4 bg-green-50 border-round-xl border-left-3 border-green-500 shadow-sm">
+                        <div class="text-green-600 font-bold mb-1 text-xs text-uppercase">RECONNECT RESILIENCE</div>
+                        <div class="text-3xl font-black text-green-600">JITTERED SYNC</div>
+                        <p class="text-600 text-sm mt-1">Elastic 15m heartbeats protecting server during high load.</p>
+                    </div>
+
+                    <div class="surface-100 p-4 border-round-xl border-left-3 border-400 shadow-sm">
+                        <div class="text-700 font-bold mb-1 text-xs text-uppercase">LATEST TICKER EVENT</div>
+                        <div class="flex align-items-center gap-2 mt-2">
+                            <p-tag [value]="metrics()?.lastUpdateEvent || 'IDLE'" severity="secondary"></p-tag>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </p-card>
+            </p-card>
+        </div>
     </div>
-  </div>
 </div>
