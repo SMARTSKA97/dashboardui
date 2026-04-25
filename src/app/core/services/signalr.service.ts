@@ -9,7 +9,8 @@ export interface SequencedPulse {
   g: string; // GroupName
   sid: number; // Sequence ID
   m: string; // Method Name
-  d: DashboardPulse; // Payload
+  d: any; // Payload (flexible for EngineUpdate)
+  ts: number; // Timestamp
 }
 
 /**
@@ -42,6 +43,7 @@ export class SignalrService {
   // Targeted Signals for Enterprise Observability
   updates$ = signal<DashboardPulse | null>(null);
   pressureUpdates$ = signal<DashboardPulse | null>(null);
+  engineUpdates$ = signal<SequencedPulse | null>(null);
 
   private lastSids = new Map<string, number>();
   private isRecovering = new Set<string>();
@@ -124,6 +126,10 @@ export class SignalrService {
     });
 
     this.hubConnection.on('SystemPressure', (data: SequencedPulse) => {
+      this.handlePulse(data);
+    });
+
+    this.hubConnection.on('EngineUpdate', (data: SequencedPulse) => {
       this.handlePulse(data);
     });
 
@@ -215,6 +221,8 @@ export class SignalrService {
     } else if (pulse.m === 'SystemPressure') {
       this.pressureUpdates$.set(pulse.d);
       this.updates$.set(pulse.d);
+    } else if (pulse.m === 'EngineUpdate') {
+      this.engineUpdates$.set(pulse);
     }
   }
 }

@@ -1,0 +1,104 @@
+<div class="engine-container">
+    <div class="header-section">
+        <div class="title">
+            <h1>PERFORMANCE ENGINE</h1>
+            <p class="text-sm text-gray-500">Real-time Stress Diagnostics & Bottleneck Identification</p>
+        </div>
+
+        <div class="controls">
+            <div class="flex flex-col gap-1 mr-4">
+                <span class="text-xs uppercase text-gray-400">Concurrency</span>
+                <div class="flex items-center gap-2">
+                    <p-slider [(ngModel)]="concurrency" [min]="1" [max]="1000" [style]="{'width':'150px'}"></p-slider>
+                    <input type="number" [(ngModel)]="concurrency" class="concurrency-input" />
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                    <p-checkbox [(ngModel)]="isAutoScale" [binary]="true" inputId="autoScale"></p-checkbox>
+                    <label for="autoScale" class="text-xs text-gray-300">Auto-Scale Intensity</label>
+                </div>
+                <span class="text-xs font-bold text-indigo-300">{{metrics()?.activeWorkers || concurrency()}} Active Workers</span>
+            </div>
+            
+            <button *ngIf="!isRunning()" pButton label="Ignite Engine" icon="pi pi-bolt" 
+                    class="p-button-rounded p-button-success" (click)="startTest()"></button>
+            
+            <button *ngIf="isRunning()" pButton label="Emergency Stop" icon="pi pi-power-off" 
+                    class="p-button-rounded p-button-danger p-button-raised" (click)="stopTest()"></button>
+        </div>
+    </div>
+
+    <!-- Bottleneck Matrix -->
+    <div class="bottleneck-matrix">
+        <div class="matrix-card" [class.active]="metrics()?.bottleneck === 'DB'">
+            <div class="label">Database Layer</div>
+            <div class="value">{{metrics()?.dbTimeMs || 0 | number:'1.0-0'}}ms</div>
+            <div class="sub-value">Stored Procedure Execution</div>
+            <div class="pulse-dot" [class.critical]="metrics()?.bottleneck === 'DB'"></div>
+        </div>
+
+        <div class="matrix-card" [class.active]="metrics()?.bottleneck === 'API'">
+            <div class="label">Backend / API</div>
+            <div class="value">{{metrics()?.apiTimeMs || 0 | number:'1.0-0'}}ms</div>
+            <div class="sub-value">Processing & Serialization</div>
+            <div class="pulse-dot" [class.critical]="metrics()?.bottleneck === 'API'"></div>
+        </div>
+
+        <div class="matrix-card" [class.active]="transitLag() > 500">
+            <div class="label">SignalR / Network</div>
+            <div class="value">{{transitLag() | number:'1.0-0'}}ms</div>
+            <div class="sub-value">Transit Latency (Srv -> Cli)</div>
+            <div class="pulse-dot" [class.warning]="transitLag() > 200" [class.critical]="transitLag() > 500"></div>
+        </div>
+
+        <div class="matrix-card" [class.active]="uiProcessingLag() > 16">
+            <div class="label">UI Render / Client</div>
+            <div class="value">{{uiProcessingLag() | number:'1.2-2'}}ms</div>
+            <div class="sub-value">Angular Signal Processing</div>
+            <div class="pulse-dot" [class.critical]="uiProcessingLag() > 16"></div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="val text-indigo-400">{{metrics()?.rps || 0}}</span>
+            <span class="desc">Transactions / Sec</span>
+        </div>
+        <div class="stat-card">
+            <span class="val text-pink-400">{{metrics()?.avgLatency || 0 | number:'1.0-0'}}ms</span>
+            <span class="desc">Avg. Latency</span>
+        </div>
+        <div class="stat-card">
+            <span class="val text-green-400">{{metrics()?.successCount || 0}}</span>
+            <span class="desc">Successful Cycles</span>
+        </div>
+        <div class="stat-card">
+            <span class="val text-red-400">{{metrics()?.errorCount || 0}}</span>
+            <span class="desc">Total Failures</span>
+        </div>
+    </div>
+
+    <!-- System Vitals -->
+    <div class="vitals-section">
+        <div class="vital-chart">
+            <h3>Throughput (RPS)</h3>
+            <div class="chart-wrap">
+                <p-chart type="line" [data]="getChartData('rps')" [options]="chartOptions"></p-chart>
+            </div>
+        </div>
+
+        <div class="vital-chart">
+            <h3>Response Time (ms)</h3>
+            <div class="chart-wrap">
+                <p-chart type="line" [data]="getChartData('latency')" [options]="chartOptions"></p-chart>
+            </div>
+        </div>
+
+        <div class="vital-chart">
+            <h3>CPU Impact (%)</h3>
+            <div class="chart-wrap">
+                <p-chart type="line" [data]="getChartData('cpu')" [options]="chartOptions"></p-chart>
+            </div>
+        </div>
+    </div>
+</div>

@@ -28,7 +28,7 @@ export class DashboardLayoutComponent {
   
   menuItems: MenuItem[] = [
     { label: 'Dashboard', icon: 'pi pi-home', routerLink: '/dashboard' },
-    { label: 'System Pressure', icon: 'pi pi-bolt', routerLink: '/system-pressure' },
+    { label: 'Performance Engine', icon: 'pi pi-bolt', routerLink: '/engine' },
     { label: 'FTO Inbox', icon: 'pi pi-inbox', routerLink: '/bills/fto-list' },
     { label: 'Bills', icon: 'pi pi-file', routerLink: '/bills/bill-list' }
   ];

@@ -56,7 +56,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       generatedBills: base.generatedBills - (base.todayGeneratedBills || 0),
       forwardedToTreasury: base.forwardedToTreasury - (base.todayForwardedToTreasury || 0),
       receivedByApprover: base.receivedByApprover - (base.todayReceivedByApprover || 0),
-      rejectedByApprover: base.rejectedByApprover - (base.todayRejectedByApprover || 0)
+      rejectedByApprover: base.rejectedByApprover - (base.todayRejectedByApprover || 0),
+      billAmount: Number(base.billAmount) - Number(base.todayBillAmount || 0),
+      forwardedAmount: Number(base.forwardedAmount) - Number(base.todayForwardedAmount || 0),
+      ftoAmount: Number(base.ftoAmount) - Number(base.todayFtoAmount || 0)
     };
 
     // If not in real-time mode, just return the base total
@@ -70,6 +73,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       forwardedToTreasury: base.todayForwardedToTreasury || 0,
       receivedByApprover: base.todayReceivedByApprover || 0,
       rejectedByApprover: base.todayRejectedByApprover || 0,
+      billAmount: base.todayBillAmount || 0,
+      forwardedAmount: base.todayForwardedAmount || 0,
+      ftoAmount: base.todayFtoAmount || 0,
       systemLoad: base.systemLoad || 0,
       context: base.context || ''
     };
@@ -82,6 +88,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       forwardedToTreasury: baseline.forwardedToTreasury + today.forwardedToTreasury,
       receivedByApprover: baseline.receivedByApprover + today.receivedByApprover,
       rejectedByApprover: baseline.rejectedByApprover + today.rejectedByApprover,
+      billAmount: Number(baseline.billAmount) + Number(today.billAmount),
+      forwardedAmount: Number(baseline.forwardedAmount) + Number(today.forwardedAmount),
+      ftoAmount: Number(baseline.ftoAmount) + Number(today.ftoAmount),
       systemLoad: today.systemLoad || base.systemLoad,
       context: today.context || base.context || 'Real-time'
     } as DashboardMetrics;
@@ -180,9 +189,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
       if (pulse && this.isRealTimeApplicable()) {
         console.debug('Dashboard: Applying SignalR Total Pulse', pulse);
         this.liveOverwrites.update(curr => {
+          const base = this.historicalBase();
           const next = curr ? { ...curr } : { 
-            receivedFto: 0, processedFto: 0, generatedBills: 0, forwardedToTreasury: 0, 
-            receivedByApprover: 0, rejectedByApprover: 0, systemLoad: 0, context: pulse.sc || 'Pulse' 
+            receivedFto: base?.todayReceivedFto || 0,
+            processedFto: base?.todayProcessedFto || 0,
+            generatedBills: base?.todayGeneratedBills || 0,
+            forwardedToTreasury: base?.todayForwardedToTreasury || 0,
+            receivedByApprover: base?.todayReceivedByApprover || 0,
+            rejectedByApprover: base?.todayRejectedByApprover || 0,
+            billAmount: base?.todayBillAmount || 0,
+            forwardedAmount: base?.todayForwardedAmount || 0,
+            ftoAmount: base?.todayFtoAmount || 0,
+            systemLoad: base?.systemLoad || 0,
+            context: pulse.sc || 'Pulse' 
           };
 
           // Update with absolute totals from pulse
@@ -192,6 +211,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           if (pulse.ft != null) next.forwardedToTreasury = pulse.ft;
           if (pulse.ar != null) next.receivedByApprover = pulse.ar;
           if (pulse.rb != null) next.rejectedByApprover = pulse.rb;
+          if (pulse.ba != null) next.billAmount = Number(pulse.ba);
+          if (pulse.fa != null) next.forwardedAmount = Number(pulse.fa);
+          if (pulse.fta != null) next.ftoAmount = Number(pulse.fta);
           if (pulse.sl != null) next.systemLoad = pulse.sl;
           next.context = pulse.sc || next.context;
 

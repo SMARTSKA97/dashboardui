@@ -115,27 +115,31 @@
             </p-card>
         </div>
         <div class="col-12 xl:col-4">
-            <p-card header="Enterprise Integrity"
-                styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
+            <p-card header="Financial Velocity"
+                styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none overflow-hidden">
                 <div class="flex flex-column gap-4 py-2">
-                    <div class="p-4 bg-primary-50 border-round-xl border-left-3 border-primary shadow-sm">
-                        <div class="text-primary font-bold mb-1 text-xs text-uppercase">UNIVERSAL BASELINE</div>
-                        <div class="text-3xl font-black text-primary">MAT-VIEW CLUSTER</div>
-                        <p class="text-600 text-sm mt-1">Admin, Approver, and Operator class FY data is served from
-                            unified cache.</p>
+                    <!-- Bill Amount -->
+                    <div class="p-4 bg-primary-50 border-round-xl border-left-3 border-primary shadow-sm relative overflow-hidden">
+                        <div class="text-primary font-bold mb-1 text-xs uppercase tracking-wider">Bill Generation</div>
+                        <div class="text-3xl font-black text-primary">₹{{ (metrics()?.billAmount || 0) | number:'1.0-0' }}</div>
+                        <p class="text-600 text-sm mt-1 font-medium">Total value of bills generated in {{ dashService.activeFyLabel() }}.</p>
+                        <i class="pi pi-file absolute opacity-10 text-6xl" style="right: -10px; bottom: -10px;"></i>
                     </div>
 
-                    <div class="p-4 bg-green-50 border-round-xl border-left-3 border-green-500 shadow-sm">
-                        <div class="text-green-600 font-bold mb-1 text-xs text-uppercase">RECONNECT RESILIENCE</div>
-                        <div class="text-3xl font-black text-green-600">JITTERED SYNC</div>
-                        <p class="text-600 text-sm mt-1">Elastic 15m heartbeats protecting server during high load.</p>
+                    <!-- Forwarded Amount -->
+                    <div class="p-4 bg-green-50 border-round-xl border-left-3 border-green-500 shadow-sm relative overflow-hidden">
+                        <div class="text-green-600 font-bold mb-1 text-xs uppercase tracking-wider">Treasury Forwarded</div>
+                        <div class="text-3xl font-black text-green-600">₹{{ (metrics()?.forwardedAmount || 0) | number:'1.0-0' }}</div>
+                        <p class="text-600 text-sm mt-1 font-medium">Funds successfully moved to treasury for disbursement.</p>
+                        <i class="pi pi-send absolute opacity-10 text-6xl" style="right: -10px; bottom: -10px;"></i>
                     </div>
 
-                    <div class="surface-100 p-4 border-round-xl border-left-3 border-400 shadow-sm">
-                        <div class="text-700 font-bold mb-1 text-xs text-uppercase">LATEST TICKER EVENT</div>
-                        <div class="flex align-items-center gap-2 mt-2">
-                            <p-tag [value]="metrics()?.lastUpdateEvent || 'IDLE'" severity="secondary"></p-tag>
-                        </div>
+                    <!-- FTO Amount -->
+                    <div class="surface-100 p-4 border-round-xl border-left-3 border-400 shadow-sm relative overflow-hidden">
+                        <div class="text-700 font-bold mb-1 text-xs uppercase tracking-wider">FTO Received</div>
+                        <div class="text-3xl font-black text-900">₹{{ (metrics()?.ftoAmount || 0) | number:'1.0-0' }}</div>
+                        <p class="text-600 text-sm mt-1 font-medium">Total volume of incoming Financial Transaction Orders.</p>
+                        <i class="pi pi-download absolute opacity-10 text-6xl" style="right: -10px; bottom: -10px;"></i>
                     </div>
                 </div>
             </p-card>

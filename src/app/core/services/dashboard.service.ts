@@ -24,6 +24,9 @@ export interface DashboardPulse {
   ft?: number; // fwdTrz
   ar?: number; // appRcvd
   rb?: number; // rejBill
+  ba?: number; // billAmount
+  fa?: number; // fwdAmount
+  fta?: number; // ftoAmount
   sl?: number; // systemLoad
   c?: number;  // cpu
   m?: number;  // mem
@@ -37,6 +40,9 @@ export interface DashboardMetrics {
   forwardedToTreasury: number;
   receivedByApprover: number;
   rejectedByApprover: number;
+  billAmount: number;
+  forwardedAmount: number;
+  ftoAmount: number;
   systemLoad: number;
   cpu?: number;
   mem?: number;
@@ -51,6 +57,9 @@ export interface DashboardMetrics {
   todayForwardedToTreasury?: number;
   todayReceivedByApprover?: number;
   todayRejectedByApprover?: number;
+  todayBillAmount?: number;
+  todayForwardedAmount?: number;
+  todayFtoAmount?: number;
 }
 
 @Injectable({
