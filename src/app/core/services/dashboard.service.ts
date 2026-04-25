@@ -117,6 +117,18 @@ export class DashboardService {
     return this.http.get<DashboardMetrics[]>(`${this.apiUrl}/comparison`, { params });
   }
 
+  getSmartMetrics(fy: number, ddoCode: string, userid: string, rangeType: string, start: Date, end: Date) {
+    const params = new HttpParams()
+      .set('fy', fy)
+      .set('ddoCode', ddoCode)
+      .set('userid', userid)
+      .set('rangeType', rangeType)
+      .set('start', start.toISOString())
+      .set('end', end.toISOString());
+
+    return this.http.get<DashboardMetrics[]>(`${this.apiUrl}/smart-metrics`, { params });
+  }
+
   // Simulation Methods
   seedFtos(count: number = 10) {
     return this.http.post(`${environment.apiUrl}/Simulation/seed?count=${count}`, {});

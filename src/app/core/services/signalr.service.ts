@@ -1,4 +1,4 @@
-import { Injectable, signal, inject } from '@angular/core';
+import { Injectable, signal, inject, effect } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 import { AuthService } from './auth.service';
@@ -47,17 +47,38 @@ export class SignalrService {
   private isRecovering = new Set<string>();
 
   private joinQueue: string[] = [];
-  
+
   private inactivityTimer: any;
   private readonly disconnectTimeoutMs = 10 * 60 * 1000; // 10 minutes
 
   constructor() {
-    this.initConnection();
+    // Reactive Connection Lifecycle: Handle login/logout automatically
+    effect(() => {
+      const token = this.auth.token();
+      if (token) {
+        console.log('SignalR: Auth token detected. Initializing connection...');
+        this.initConnection();
+      } else {
+        console.warn('SignalR: No auth token. Disconnecting hub...');
+        this.stopConnection();
+      }
+    });
+  }
+
+  private async stopConnection() {
+    if (this.hubConnection) {
+      if (this.hubConnection.state !== signalR.HubConnectionState.Disconnected) {
+        await this.hubConnection.stop();
+      }
+      this.hubConnection = null;
+      this.lastSids.clear();
+      this.isRecovering.clear();
+    }
   }
 
   private resetInactivityTimer() {
     if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
-    
+
     this.inactivityTimer = setTimeout(() => {
       console.warn('SignalR: Disconnecting due to inactivity to save resources.');
       if (this.hubConnection?.state === signalR.HubConnectionState.Connected) {
@@ -83,6 +104,8 @@ export class SignalrService {
   }
 
   private initConnection() {
+    if (this.hubConnection) return;
+
     // Consolidated Hub URL
     const hubUrl = `${environment.apiUrl.replace('/api', '')}/signalr-hub`;
 
@@ -118,7 +141,7 @@ export class SignalrService {
       while (this.joinQueue.length > 0) {
         const group = this.joinQueue.shift();
         if (group) {
-           await this.hubConnection.invoke('JoinGroup', group);
+          await this.hubConnection.invoke('JoinGroup', group);
         }
       }
     }
@@ -170,7 +193,7 @@ export class SignalrService {
     this.isRecovering.add(group);
 
     // Thundering Herd Protection: Random Jitter for backfill
-    const jitter = Math.random() * 2000; 
+    const jitter = Math.random() * 2000;
     setTimeout(() => {
       this.dashService.getMetricsGap(group, lastId, currentId).subscribe({
         next: (missedPulses: SequencedPulse[]) => {
