@@ -1,104 +1,176 @@
-<div class="engine-container">
-    <div class="header-section">
-        <div class="title">
-            <h1>PERFORMANCE ENGINE</h1>
-            <p class="text-sm text-gray-500">Real-time Stress Diagnostics & Bottleneck Identification</p>
+<div class="load-test-page flex flex-column gap-4 lg:gap-5 animate-fade-in">
+    <!-- Header & Control Panel -->
+    <div class="hero-panel flex flex-column xl:flex-row justify-content-between align-items-stretch xl:align-items-center gap-4 p-4 lg:p-5 border-round-2xl shadow-2">
+        <div class="flex-shrink-0">
+            <div class="eyebrow text-primary font-bold text-xs uppercase tracking-wider mb-2">Stress Test Environment</div>
+            <h1 class="text-3xl lg:text-4xl font-black text-900 m-0">Performance Engine</h1>
+            <p class="text-600 mt-2 font-medium mb-0">
+                <i class="pi pi-bolt mr-2"></i>Real-time Stress Diagnostics & Bottleneck Identification
+            </p>
         </div>
 
-        <div class="controls">
-            <div class="flex flex-col gap-1 mr-4">
-                <span class="text-xs uppercase text-gray-400">Concurrency</span>
-                <div class="flex items-center gap-2">
-                    <p-slider [(ngModel)]="concurrency" [min]="1" [max]="1000" [style]="{'width':'150px'}"></p-slider>
-                    <input type="number" [(ngModel)]="concurrency" class="concurrency-input" />
+        <div class="flex flex-column sm:flex-row flex-wrap align-items-start sm:align-items-center justify-content-end gap-4 flex-grow-1">
+            <div class="flex flex-column gap-2">
+                <span class="text-xs uppercase font-bold text-500 tracking-wider">Engine Concurrency</span>
+                <div class="flex align-items-center gap-3 bg-white-alpha-50 p-2 border-round-xl border-1 border-white-alpha-30 shadow-sm">
+                    <p-slider [(ngModel)]="concurrency" [min]="1" [max]="1000" class="w-10rem"></p-slider>
+                    <p-inputNumber [(ngModel)]="concurrency" [showButtons]="false" buttonLayout="horizontal" 
+                                 inputStyleClass="w-3rem border-none bg-transparent font-bold text-primary text-center" 
+                                 class="concurrency-input"></p-inputNumber>
                 </div>
-                <div class="flex items-center gap-2 mt-1">
+            </div>
+
+            <div class="flex flex-column gap-2">
+                <span class="text-xs uppercase font-bold text-500 tracking-wider">Auto-Scale</span>
+                <div class="flex align-items-center gap-2 h-3rem bg-white-alpha-50 px-3 border-round-xl border-1 border-white-alpha-30 shadow-sm">
                     <p-checkbox [(ngModel)]="isAutoScale" [binary]="true" inputId="autoScale"></p-checkbox>
-                    <label for="autoScale" class="text-xs text-gray-300">Auto-Scale Intensity</label>
+                    <label for="autoScale" class="text-sm font-bold text-700 cursor-pointer">Adaptive Intensity</label>
                 </div>
-                <span class="text-xs font-bold text-indigo-300">{{metrics()?.activeWorkers || concurrency()}} Active Workers</span>
             </div>
-            
-            <button *ngIf="!isRunning()" pButton label="Ignite Engine" icon="pi pi-bolt" 
-                    class="p-button-rounded p-button-success" (click)="startTest()"></button>
-            
-            <button *ngIf="isRunning()" pButton label="Emergency Stop" icon="pi pi-power-off" 
-                    class="p-button-rounded p-button-danger p-button-raised" (click)="stopTest()"></button>
+
+            <div class="flex gap-2">
+                <button *ngIf="!isRunning()" pButton label="Ignite Engine" icon="pi pi-bolt" 
+                        class="p-button-rounded p-button-success shadow-4 px-4 py-3 font-bold h-3rem" (click)="startTest()"></button>
+                
+                <button *ngIf="isRunning()" pButton label="Emergency Stop" icon="pi pi-power-off" 
+                        class="p-button-rounded p-button-danger p-button-raised shadow-4 px-4 py-3 font-bold h-3rem" (click)="stopTest()"></button>
+            </div>
+
+            <p-tag [value]="isRunning() ? 'ENGINE ACTIVE' : 'ENGINE COLD'"
+                  [severity]="isRunning() ? 'success' : 'info'"
+                  styleClass="uppercase font-bold px-3 py-2 border-round-lg shadow-sm"></p-tag>
         </div>
     </div>
 
-    <!-- Bottleneck Matrix -->
-    <div class="bottleneck-matrix">
-        <div class="matrix-card" [class.active]="metrics()?.bottleneck === 'DB'">
-            <div class="label">Database Layer</div>
-            <div class="value">{{metrics()?.dbTimeMs || 0 | number:'1.0-0'}}ms</div>
-            <div class="sub-value">Stored Procedure Execution</div>
-            <div class="pulse-dot" [class.critical]="metrics()?.bottleneck === 'DB'"></div>
+    <!-- Live Load Metrics -->
+    <div class="grid">
+        <div class="col-12 md:col-6 lg:col-3">
+            <p-card styleClass="metric-card h-full border-none shadow-2 transition-all duration-300" 
+                    [class.bottleneck-active]="metrics()?.bottleneck === 'DB'">
+                <div class="flex flex-column gap-2">
+                    <div class="flex justify-content-between align-items-center mb-1">
+                        <span class="text-600 font-bold text-xs uppercase tracking-wider">Database Layer</span>
+                        <div class="icon-circle p-2 border-round-lg bg-blue-50">
+                            <i class="pi pi-database text-blue-500"></i>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-black text-900">{{metrics()?.dbTimeMs || 0 | number:'1.0-0'}}<span class="text-sm font-bold text-500 ml-1">ms</span></div>
+                    <p class="text-500 text-xs mt-1">Stored Procedure Execution</p>
+                </div>
+            </p-card>
         </div>
 
-        <div class="matrix-card" [class.active]="metrics()?.bottleneck === 'API'">
-            <div class="label">Backend / API</div>
-            <div class="value">{{metrics()?.apiTimeMs || 0 | number:'1.0-0'}}ms</div>
-            <div class="sub-value">Processing & Serialization</div>
-            <div class="pulse-dot" [class.critical]="metrics()?.bottleneck === 'API'"></div>
+        <div class="col-12 md:col-6 lg:col-3">
+            <p-card styleClass="metric-card h-full border-none shadow-2 transition-all duration-300"
+                    [class.bottleneck-active]="metrics()?.bottleneck === 'API'">
+                <div class="flex flex-column gap-2">
+                    <div class="flex justify-content-between align-items-center mb-1">
+                        <span class="text-600 font-bold text-xs uppercase tracking-wider">Backend API</span>
+                        <div class="icon-circle p-2 border-round-lg bg-purple-50">
+                            <i class="pi pi-server text-purple-500"></i>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-black text-900">{{metrics()?.apiTimeMs || 0 | number:'1.0-0'}}<span class="text-sm font-bold text-500 ml-1">ms</span></div>
+                    <p class="text-500 text-xs mt-1">Processing & Serialization</p>
+                </div>
+            </p-card>
         </div>
 
-        <div class="matrix-card" [class.active]="transitLag() > 500">
-            <div class="label">SignalR / Network</div>
-            <div class="value">{{transitLag() | number:'1.0-0'}}ms</div>
-            <div class="sub-value">Transit Latency (Srv -> Cli)</div>
-            <div class="pulse-dot" [class.warning]="transitLag() > 200" [class.critical]="transitLag() > 500"></div>
+        <div class="col-12 md:col-6 lg:col-3">
+            <p-card styleClass="metric-card h-full border-none shadow-2 transition-all duration-300"
+                    [class.bottleneck-warning]="transitLag() > 200"
+                    [class.bottleneck-active]="transitLag() > 500">
+                <div class="flex flex-column gap-2">
+                    <div class="flex justify-content-between align-items-center mb-1">
+                        <span class="text-600 font-bold text-xs uppercase tracking-wider">SignalR Transit</span>
+                        <div class="icon-circle p-2 border-round-lg bg-orange-50">
+                            <i class="pi pi-directions text-orange-500"></i>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-black text-900">{{transitLag() | number:'1.0-0'}}<span class="text-sm font-bold text-500 ml-1">ms</span></div>
+                    <p class="text-500 text-xs mt-1">Server to Client Latency</p>
+                </div>
+            </p-card>
         </div>
 
-        <div class="matrix-card" [class.active]="uiProcessingLag() > 16">
-            <div class="label">UI Render / Client</div>
-            <div class="value">{{uiProcessingLag() | number:'1.2-2'}}ms</div>
-            <div class="sub-value">Angular Signal Processing</div>
-            <div class="pulse-dot" [class.critical]="uiProcessingLag() > 16"></div>
+        <div class="col-12 md:col-6 lg:col-3">
+            <p-card styleClass="metric-card h-full border-none shadow-2 transition-all duration-300"
+                    [class.bottleneck-active]="uiProcessingLag() > 16">
+                <div class="flex flex-column gap-2">
+                    <div class="flex justify-content-between align-items-center mb-1">
+                        <span class="text-600 font-bold text-xs uppercase tracking-wider">UI Render</span>
+                        <div class="icon-circle p-2 border-round-lg bg-green-50">
+                            <i class="pi pi-desktop text-green-500"></i>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-black text-900">{{uiProcessingLag() | number:'1.2-2'}}<span class="text-sm font-bold text-500 ml-1">ms</span></div>
+                    <p class="text-500 text-xs mt-1">Angular Signal Processing</p>
+                </div>
+            </p-card>
         </div>
     </div>
 
-    <!-- Quick Stats -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <span class="val text-indigo-400">{{metrics()?.rps || 0}}</span>
-            <span class="desc">Transactions / Sec</span>
+    <!-- Detailed Analysis -->
+    <div class="grid">
+        <div class="col-12 xl:col-9">
+            <p-card header="Engine Vitals (RPS vs Latency)" styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
+                <div class="grid">
+                    <div class="col-12 lg:col-4">
+                        <div class="chart-container p-3 relative overflow-hidden">
+                            <div class="flex justify-content-between align-items-center mb-3">
+                                <h4 class="text-xs uppercase text-500 font-bold m-0">Throughput (RPS)</h4>
+                                <span class="text-lg font-black text-indigo-600">{{metrics()?.rps || 0}}</span>
+                            </div>
+                            <p-chart type="line" [data]="getChartData('rps')" [options]="chartOptions" height="150px"></p-chart>
+                        </div>
+                    </div>
+                    <div class="col-12 lg:col-4">
+                        <div class="chart-container p-3 relative overflow-hidden">
+                            <div class="flex justify-content-between align-items-center mb-3">
+                                <h4 class="text-xs uppercase text-500 font-bold m-0">Response Time (ms)</h4>
+                                <span class="text-lg font-black text-pink-600">{{metrics()?.avgLatency || 0 | number:'1.0-0'}}ms</span>
+                            </div>
+                            <p-chart type="line" [data]="getChartData('latency')" [options]="chartOptions" height="150px"></p-chart>
+                        </div>
+                    </div>
+                    <div class="col-12 lg:col-4">
+                        <div class="chart-container p-3 relative overflow-hidden">
+                            <div class="flex justify-content-between align-items-center mb-3">
+                                <h4 class="text-xs uppercase text-500 font-bold m-0">CPU Impact (%)</h4>
+                                <span class="text-lg font-black text-purple-600">{{vitals()?.cpu || 0}}%</span>
+                            </div>
+                            <p-chart type="line" [data]="getChartData('cpu')" [options]="chartOptions" height="150px"></p-chart>
+                        </div>
+                    </div>
+                </div>
+            </p-card>
         </div>
-        <div class="stat-card">
-            <span class="val text-pink-400">{{metrics()?.avgLatency || 0 | number:'1.0-0'}}ms</span>
-            <span class="desc">Avg. Latency</span>
-        </div>
-        <div class="stat-card">
-            <span class="val text-green-400">{{metrics()?.successCount || 0}}</span>
-            <span class="desc">Successful Cycles</span>
-        </div>
-        <div class="stat-card">
-            <span class="val text-red-400">{{metrics()?.errorCount || 0}}</span>
-            <span class="desc">Total Failures</span>
-        </div>
-    </div>
 
-    <!-- System Vitals -->
-    <div class="vitals-section">
-        <div class="vital-chart">
-            <h3>Throughput (RPS)</h3>
-            <div class="chart-wrap">
-                <p-chart type="line" [data]="getChartData('rps')" [options]="chartOptions"></p-chart>
-            </div>
-        </div>
+        <div class="col-12 xl:col-3">
+            <p-card header="Cycle Statistics" styleClass="dashboard-card shadow-3 border-round-2xl h-full border-none">
+                <div class="flex flex-column gap-3">
+                    <div class="p-3 bg-indigo-50 border-round-xl flex justify-content-between align-items-center">
+                        <span class="text-xs font-bold text-indigo-600 uppercase">Active Workers</span>
+                        <span class="text-xl font-black text-indigo-900">{{metrics()?.activeWorkers || concurrency()}}</span>
+                    </div>
+                    <div class="p-3 bg-green-50 border-round-xl flex justify-content-between align-items-center">
+                        <span class="text-xs font-bold text-green-600 uppercase">Success Rate</span>
+                        <span class="text-xl font-black text-green-900">{{metrics()?.successCount || 0}}</span>
+                    </div>
+                    <div class="p-3 bg-pink-50 border-round-xl flex justify-content-between align-items-center">
+                        <span class="text-xs font-bold text-pink-600 uppercase">Total RPS</span>
+                        <span class="text-xl font-black text-pink-900">{{metrics()?.rps || 0}}</span>
+                    </div>
+                    <div class="p-3 bg-red-50 border-round-xl flex justify-content-between align-items-center">
+                        <span class="text-xs font-bold text-red-600 uppercase">Failures</span>
+                        <span class="text-xl font-black text-red-900">{{metrics()?.errorCount || 0}}</span>
+                    </div>
 
-        <div class="vital-chart">
-            <h3>Response Time (ms)</h3>
-            <div class="chart-wrap">
-                <p-chart type="line" [data]="getChartData('latency')" [options]="chartOptions"></p-chart>
-            </div>
-        </div>
-
-        <div class="vital-chart">
-            <h3>CPU Impact (%)</h3>
-            <div class="chart-wrap">
-                <p-chart type="line" [data]="getChartData('cpu')" [options]="chartOptions"></p-chart>
-            </div>
+                    @if (metrics()?.bottleneck && metrics()?.bottleneck !== 'None') {
+                        <p-message severity="warn" [text]="'Bottleneck Detected: ' + metrics()?.bottleneck + ' Layer'" styleClass="w-full mt-2 border-round-xl"></p-message>
+                    }
+                </div>
+            </p-card>
         </div>
     </div>
 </div>

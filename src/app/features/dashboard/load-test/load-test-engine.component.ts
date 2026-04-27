@@ -9,11 +9,14 @@ import { ChartModule } from 'primeng/chart';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { CheckboxModule } from 'primeng/checkbox';
+import { CardModule } from 'primeng/card';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { MessageModule } from 'primeng/message';
 
 @Component({
   selector: 'app-load-test-engine',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, SliderModule, ChartModule, TagModule, TooltipModule, CheckboxModule],
+  imports: [CommonModule, FormsModule, ButtonModule, SliderModule, ChartModule, TagModule, TooltipModule, CheckboxModule, CardModule, InputNumberModule, MessageModule],
   templateUrl: './load-test-engine.component.html',
   styleUrl: './load-test-engine.component.scss'
 })
@@ -23,7 +26,11 @@ export class LoadTestEngineComponent implements OnInit, OnDestroy {
 
   concurrency = signal<number>(10);
   isAutoScale = signal<boolean>(false);
-  isRunning = computed(() => this.engine.status()?.status === 'Running');
+  isRunning = computed(() => {
+    const apiStatus = this.engine.status()?.status;
+    const liveStatus = this.metrics()?.status;
+    return apiStatus === 'Running' || liveStatus === 'Running';
+  });
   
   // Real-time Metrics
   metrics = signal<LoadTestMetrics | null>(null);
@@ -75,11 +82,15 @@ export class LoadTestEngineComponent implements OnInit, OnDestroy {
   }
 
   startTest() {
-    this.engine.start(this.concurrency(), this.isAutoScale()).subscribe();
+    this.engine.start(this.concurrency(), this.isAutoScale()).subscribe(() => {
+      this.engine.getStatus();
+    });
   }
 
   stopTest() {
-    this.engine.stop().subscribe();
+    this.engine.stop().subscribe(() => {
+      this.engine.getStatus();
+    });
   }
 
   getBottleneckColor(type: string): string {
@@ -97,9 +108,12 @@ export class LoadTestEngineComponent implements OnInit, OnDestroy {
     const data = this.history()[type];
     const colors = { rps: '#6366f1', latency: '#ec4899', cpu: '#a855f7' };
     
+    const labels = { rps: 'Transactions/s', latency: 'Latency (ms)', cpu: 'CPU Usage (%)' };
+    
     return {
-      labels: data.map((_, i) => i.toString()),
+      labels: data.map((_, i) => `${i}s`),
       datasets: [{
+        label: labels[type],
         data: data,
         borderColor: colors[type],
         backgroundColor: colors[type] + '22',
@@ -111,8 +125,31 @@ export class LoadTestEngineComponent implements OnInit, OnDestroy {
   }
 
   chartOptions = {
-    plugins: { legend: { display: false }, tooltip: { enabled: false } },
-    scales: { x: { display: false }, y: { display: false } },
-    maintainAspectRatio: false
+    plugins: { 
+      legend: { display: false }, 
+      tooltip: { 
+        enabled: true,
+        mode: 'index',
+        intersect: false,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        titleColor: '#1e293b',
+        bodyColor: '#1e293b',
+        borderColor: '#e2e8f0',
+        borderWidth: 1,
+        padding: 10,
+        displayColors: true
+      } 
+    },
+    scales: { 
+      x: { display: false }, 
+      y: { 
+        display: true, 
+        position: 'right',
+        ticks: { display: false },
+        grid: { color: 'rgba(0,0,0,0.03)', drawBorder: false } 
+      } 
+    },
+    maintainAspectRatio: false,
+    interaction: { mode: 'nearest', axis: 'x', intersect: false }
   };
 }
