@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal, effect, computed, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, effect, computed, inject, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -132,10 +132,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private activeGroup: { target: string, scope: string } | null = null;
   private midnightTimer: any;
   private syncPoller: any;
+  private hasInitializedFY = false;
 
   isRealTimeApplicable = computed(() => {
     const type = this.rangeType();
     const fy = this.selectedFY();
+    const activeFy = this.dashService.activeFy();
+
+    // Strict: Real-time is ONLY applicable if we are viewing the current system FY
+    if (fy !== activeFy) return false;
+
     const today = new Date();
     
     // Check if current date falls within selected FY
@@ -239,13 +245,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }
     });
 
-    // SYNC: Ensure dropdown FY matches the Source of Truth from backend
+    // SYNC: Ensure dropdown FY matches the Source of Truth from backend on init or year change
     effect(() => {
       const activeFy = this.dashService.activeFy();
-      if (activeFy) {
-        console.debug('Dashboard: Syncing selectedFY with Source of Truth', activeFy);
+      if (!activeFy) return;
+
+      // Only re-sync if we haven't initialized yet
+      if (!this.hasInitializedFY) {
+        console.debug('Dashboard: Initializing selectedFY with Source of Truth', activeFy);
         
-        // Re-generate options based on active FY if needed
         const currentYear = 2000 + Math.floor(activeFy / 100);
         const fys = [];
         for (let i = 0; i < 3; i++) {
@@ -254,9 +262,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
             fys.push({ label: `FY 20${Math.floor(fy/100)}-${fy%100}`, value: fy });
         }
         this.fyOptions.set(fys);
-        
         this.selectedFY.set(activeFy);
         this.refreshMetrics();
+        this.hasInitializedFY = true;
       }
     });
   }
